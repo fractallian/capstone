@@ -1,5 +1,5 @@
 {
-  "name": "gobblet",
+  "name": "@capstone/game-logic",
   "version": "1.0.0",
   "description": "Game API for both server and client",
   "type": "module",
@@ -22,12 +22,10 @@
   },
   "author": "Jeremy Dunn",
   "license": "ISC",
-  "dependencies": {
-    "typescript": "^4.6.3"
-  },
   "devDependencies": {
     "@vitest/ui": "^3.2.4",
     "esbuild": "^0.25.9",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
 }

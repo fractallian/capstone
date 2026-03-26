@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../src/index.ts"],
-  "sourcesContent": ["// Gobblet game library exports\n\nexport { Board, BoardLine, BoardLineType } from \"./Board\";\nexport { Game, SerializedMove } from \"./Game\";\nexport { InvalidMoveError, Move } from \"./Move\";\nexport { Piece, PieceSize } from \"./Piece\";\nexport { Player, PlayerColor } from \"./Player\";\nexport { Pool } from \"./Pool\";\nexport { Stack, StackLocation } from \"./Stack\";\n"],
+  "sourcesContent": ["// Capstone game library exports\n\nexport { Board, BoardLine, BoardLineType } from \"./Board\";\nexport { Game, SerializedMove } from \"./Game\";\nexport { InvalidMoveError, Move } from \"./Move\";\nexport { Piece, PieceSize } from \"./Piece\";\nexport { Player, PlayerColor } from \"./Player\";\nexport { Pool } from \"./Pool\";\nexport { Stack, StackLocation } from \"./Stack\";\n"],
   "mappings": "AAEA,SAAS,OAAO,WAAW,qBAAqB;AAChD,SAAS,MAAM,sBAAsB;AACrC,SAAS,kBAAkB,YAAY;AACvC,SAAS,OAAO,iBAAiB;AACjC,SAAS,QAAQ,mBAAmB;AACpC,SAAS,YAAY;AACrB,SAAS,OAAO,qBAAqB;",
   "names": []
 }

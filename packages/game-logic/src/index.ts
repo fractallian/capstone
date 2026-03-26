@@ -1,4 +1,4 @@
-// Gobblet game library exports
+// Capstone game library exports
 
 export { Board, BoardLine, BoardLineType } from "./Board";
 export { Game, SerializedMove } from "./Game";

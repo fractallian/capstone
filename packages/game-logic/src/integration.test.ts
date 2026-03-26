@@ -4,7 +4,7 @@ import { InvalidMoveError } from "./Move";
 import { PieceSize } from "./Piece";
 import { viewGameState } from "./viewGameState";
 
-describe("Gobblet Game Integration Tests", () => {
+describe("Capstone Game Integration Tests", () => {
 	describe("Complete game scenarios", () => {
 		it("handles a complete winning game scenario", () => {
 			const game = new Game();

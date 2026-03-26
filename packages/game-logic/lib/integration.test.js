@@ -3,7 +3,7 @@ import { Game } from './Game';
 import { InvalidMoveError } from './Move';
 import { viewGameState } from './viewGameState';
 import { PieceSize } from './Piece';
-describe('Gobblet Game Integration Tests', () => {
+describe('Capstone Game Integration Tests', () => {
     describe('Complete game scenarios', () => {
         it('handles a complete winning game scenario', () => {
             const game = new Game();
