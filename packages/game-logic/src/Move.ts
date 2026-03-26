@@ -3,7 +3,20 @@ import type { Piece } from "./Piece";
 import type { Player } from "./Player";
 import { type Stack, StackLocation } from "./Stack";
 
-export class InvalidMoveError extends Error {}
+export class InvalidMoveError extends Error {
+	errors: string[];
+
+	constructor(errors: string[] = ["Move rejected by game rules."]) {
+		super(errors.join("; "));
+		this.name = "InvalidMoveError";
+		this.errors = errors;
+	}
+}
+
+export type MoveValidationResult = {
+	isValid: boolean;
+	errors: string[];
+};
 
 export class Move {
 	player: Player;
@@ -36,26 +49,50 @@ export class Move {
 		return false;
 	}
 
-	isValid() {
-		const piece = this.piece();
-		if (!piece) return false;
-		if (this.game.currentTurn !== piece.player) return false;
+	isValid(): MoveValidationResult {
+		const errors: string[] = [];
 
-		if (!this.toStack.canAddPiece(piece)) return false;
+		if (this.fromStack === this.toStack) {
+			errors.push("cannot move to the same stack");
+			return { isValid: false, errors };
+		}
+
+		const piece = this.piece();
+		if (!piece) {
+			errors.push("no piece on from stack");
+			return { isValid: false, errors };
+		}
+
+		if (this.game.currentTurn !== piece.player) {
+			errors.push("not the current player's turn");
+			return { isValid: false, errors };
+		}
+
+		if (!this.toStack.canAddPiece(piece)) {
+			errors.push("destination cannot accept piece");
+			return { isValid: false, errors };
+		}
 
 		if (this.fromStack.location === StackLocation.board) {
-			return true;
+			return { isValid: true, errors };
 		}
 
 		// when moving from pool, destination must be a board stack that is either empty or
 		// covers one of your opponent's three in a row
-		if (this.toStack.isEmpty()) return true;
-		if (this.coversOneOfThree()) return true;
-		return false;
+		if (this.toStack.isEmpty()) return { isValid: true, errors };
+		if (this.coversOneOfThree()) return { isValid: true, errors };
+
+		errors.push("pool moves must go to an empty stack or cover a three-in-a-row");
+		return { isValid: false, errors };
 	}
 
 	perform(validate = true) {
-		if (validate && !this.isValid()) throw new InvalidMoveError();
+		if (validate) {
+			const validation = this.isValid();
+			if (!validation.isValid) {
+				throw new InvalidMoveError(validation.errors);
+			}
+		}
 
 		this.toStack.addPiece(this.piece() as Piece);
 		this.fromStack.pieces.pop();

@@ -1,5 +1,10 @@
 import { StackLocation } from "./Stack";
 export class InvalidMoveError extends Error {
+    constructor(errors = ["Move rejected by game rules."]) {
+        super(errors.join("; "));
+        this.name = "InvalidMoveError";
+        this.errors = errors;
+    }
 }
 export class Move {
     constructor(player, fromStack, toStack) {
@@ -25,27 +30,43 @@ export class Move {
         return false;
     }
     isValid() {
+        const errors = [];
+        if (this.fromStack === this.toStack) {
+            errors.push("cannot move to the same stack");
+            return { isValid: false, errors };
+        }
         const piece = this.piece();
-        if (!piece)
-            return false;
-        if (this.game.currentTurn !== piece.player)
-            return false;
-        if (!this.toStack.canAddPiece(piece))
-            return false;
+        if (!piece) {
+            errors.push("no piece on from stack");
+            return { isValid: false, errors };
+        }
+        if (this.game.currentTurn !== piece.player) {
+            errors.push("not the current player's turn");
+            return { isValid: false, errors };
+        }
+        if (!this.toStack.canAddPiece(piece)) {
+            errors.push("destination cannot accept piece");
+            return { isValid: false, errors };
+        }
         if (this.fromStack.location === StackLocation.board) {
-            return true;
+            return { isValid: true, errors };
         }
         // when moving from pool, destination must be a board stack that is either empty or
         // covers one of your opponent's three in a row
         if (this.toStack.isEmpty())
-            return true;
+            return { isValid: true, errors };
         if (this.coversOneOfThree())
-            return true;
-        return false;
+            return { isValid: true, errors };
+        errors.push("pool moves must go to an empty stack or cover a three-in-a-row");
+        return { isValid: false, errors };
     }
     perform(validate = true) {
-        if (validate && !this.isValid())
-            throw new InvalidMoveError();
+        if (validate) {
+            const validation = this.isValid();
+            if (!validation.isValid) {
+                throw new InvalidMoveError(validation.errors);
+            }
+        }
         this.toStack.addPiece(this.piece());
         this.fromStack.pieces.pop();
     }

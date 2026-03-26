@@ -3,7 +3,13 @@ import type { Piece } from "./Piece";
 import type { Player } from "./Player";
 import { type Stack } from "./Stack";
 export declare class InvalidMoveError extends Error {
+    errors: string[];
+    constructor(errors?: string[]);
 }
+export type MoveValidationResult = {
+    isValid: boolean;
+    errors: string[];
+};
 export declare class Move {
     player: Player;
     game: Game;
@@ -16,6 +22,6 @@ export declare class Move {
      * by moving a piece directly from the player's pool
      */
     coversOneOfThree(): boolean;
-    isValid(): boolean;
+    isValid(): MoveValidationResult;
     perform(validate?: boolean): void;
 }

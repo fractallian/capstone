@@ -1,7 +1,7 @@
-import { Board } from "./Board";
-import { Move } from "./Move";
-import { Player } from "./Player";
-import type { Stack } from "./Stack";
+import { Board } from './Board';
+import { Move } from './Move';
+import { Player } from './Player';
+import type { Stack } from './Stack';
 /**
  * stack indexes
  *

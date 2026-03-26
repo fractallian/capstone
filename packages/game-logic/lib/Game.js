@@ -1,6 +1,6 @@
-import { Board } from "./Board";
-import { Move } from "./Move";
-import { Player, PlayerColor } from "./Player";
+import { Board } from './Board';
+import { Move } from './Move';
+import { Player, PlayerColor } from './Player';
 export class Game {
     constructor() {
         this.stacks = [];
@@ -14,8 +14,7 @@ export class Game {
         const move = new Move(this.currentTurn, fromStack, toStack);
         move.perform(validate);
         this.moves.push(move);
-        this.currentTurn =
-            this.currentTurn === this.player1 ? this.player2 : this.player1;
+        this.currentTurn = this.currentTurn === this.player1 ? this.player2 : this.player1;
     }
     currentTurnIndex() {
         return this.currentTurn === this.player1 ? 0 : 1;
@@ -24,7 +23,7 @@ export class Game {
         return this.moves.map((move) => {
             return {
                 from: move.fromStack.index,
-                to: move.toStack.index,
+                to: move.toStack.index
             };
         });
     }

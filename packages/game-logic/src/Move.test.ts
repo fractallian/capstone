@@ -10,6 +10,10 @@ describe("Move", () => {
 		game = new Game();
 	});
 
+	function isValid(move: Move) {
+		return move.isValid().isValid;
+	}
+
 	describe("basic validation", () => {
 		it("only allows moves by player that has current turn", () => {
 			const move = new Move(
@@ -19,10 +23,13 @@ describe("Move", () => {
 			);
 
 			expect(game.currentTurn).toEqual(game.player1);
-			expect(move.isValid()).toEqual(true);
+			expect(move.isValid()).toEqual({ isValid: true, errors: [] });
 
 			game.currentTurn = game.player2;
-			expect(move.isValid()).toEqual(false);
+			expect(move.isValid()).toEqual({
+				isValid: false,
+				errors: ["not the current player's turn"],
+			});
 		});
 
 		it("requires a piece to move", () => {
@@ -31,7 +38,7 @@ describe("Move", () => {
 			const move = new Move(game.player1, emptyStack, game.board.stacks[0][1]);
 
 			expect(move.piece()).toBeUndefined();
-			expect(move.isValid()).toBe(false);
+			expect(move.isValid()).toEqual({ isValid: false, errors: ["no piece on from stack"] });
 		});
 
 		it("validates piece belongs to moving player", () => {
@@ -45,7 +52,10 @@ describe("Move", () => {
 				game.board.stacks[0][1],
 			);
 
-			expect(move.isValid()).toBe(false);
+			expect(move.isValid()).toEqual({
+				isValid: false,
+				errors: ["not the current player's turn"],
+			});
 		});
 
 		it("validates destination can accept the piece", () => {
@@ -64,7 +74,10 @@ describe("Move", () => {
 				game.board.stacks[0][1],
 			);
 
-			expect(move.isValid()).toBe(false);
+			expect(move.isValid()).toEqual({
+				isValid: false,
+				errors: ["destination cannot accept piece"],
+			});
 		});
 	});
 
@@ -77,7 +90,7 @@ describe("Move", () => {
 			);
 
 			expect(game.board.stacks[1][1].isEmpty()).toBe(true);
-			expect(move.isValid()).toBe(true);
+			expect(isValid(move)).toBe(true);
 		});
 
 		it("blocks moves from pool to occupied spaces (without three-in-a-row)", () => {
@@ -92,7 +105,11 @@ describe("Move", () => {
 				game.board.stacks[0][0],
 			);
 
-			expect(move.isValid()).toBe(false);
+			const result = move.isValid();
+			expect(result.isValid).toBe(false);
+			expect(
+				["destination cannot accept piece", "pool moves must go to an empty stack or cover a three-in-a-row"],
+			).toContain(result.errors[0]);
 		});
 
 		it("allows covering opponent pieces when they have three in a row", () => {
@@ -116,7 +133,7 @@ describe("Move", () => {
 			);
 
 			expect(move.coversOneOfThree()).toBe(true);
-			expect(move.isValid()).toBe(true);
+			expect(isValid(move)).toBe(true);
 		});
 	});
 
@@ -140,7 +157,7 @@ describe("Move", () => {
 				game.board.stacks[0][1],
 			);
 
-			expect(move.isValid()).toBe(true);
+			expect(isValid(move)).toBe(true);
 		});
 
 		it("allows board to board moves to occupied spaces (if size allows)", () => {
@@ -161,7 +178,7 @@ describe("Move", () => {
 				game.board.stacks[0][1], // onto size 2 piece
 			);
 
-			expect(move.isValid()).toBe(true);
+			expect(isValid(move)).toBe(true);
 		});
 
 		it("prevents board to board moves to spaces with larger pieces", () => {
@@ -179,7 +196,7 @@ describe("Move", () => {
 				game.board.stacks[0][0], // onto size 3 piece
 			);
 
-			expect(move.isValid()).toBe(false);
+			expect(isValid(move)).toBe(false);
 		});
 	});
 
@@ -322,14 +339,14 @@ describe("Move", () => {
 			const move = new Move(game.player1, emptyStack, game.board.stacks[0][0]);
 
 			expect(move.piece()).toBeUndefined();
-			expect(move.isValid()).toBe(false);
+			expect(move.isValid()).toEqual({ isValid: false, errors: ["no piece on from stack"] });
 		});
 
 		it("handles move to same stack", () => {
 			const stack = game.player1.pool.stacks[0];
 			const move = new Move(game.player1, stack, stack);
 
-			expect(move.isValid()).toBe(false);
+			expect(move.isValid()).toEqual({ isValid: false, errors: ["cannot move to the same stack"] });
 		});
 	});
 });

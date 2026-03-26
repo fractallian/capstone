@@ -1,50 +1,51 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const stackIndexSchema = z.int().min(0).max(21);
 
 export const serializedMoveSchema = z.object({
 	from: stackIndexSchema,
-	to: stackIndexSchema,
+	to: stackIndexSchema
 });
 
 export const gameSnapshotSchema = z.object({
 	moves: z.array(serializedMoveSchema),
-	currentTurnIndex: z.union([z.literal(0), z.literal(1)]),
+	currentTurnIndex: z.union([z.literal(0), z.literal(1)])
 });
 
 export const makeMoveCommandSchema = z.object({
-	type: z.literal("make_move"),
+	type: z.literal('make_move'),
 	from: stackIndexSchema,
-	to: stackIndexSchema,
+	to: stackIndexSchema
 });
 
-export const gameCommandSchema = z.discriminatedUnion("type", [makeMoveCommandSchema]);
+export const gameCommandSchema = z.discriminatedUnion('type', [makeMoveCommandSchema]);
 
 export const gameStateSyncEventSchema = z.object({
-	type: z.literal("state_sync"),
+	type: z.literal('state_sync'),
 	gameId: z.string().min(1),
-	snapshot: gameSnapshotSchema,
+	snapshot: gameSnapshotSchema
 });
 
 export const gameInvalidMoveEventSchema = z.object({
-	type: z.literal("invalid_move"),
+	type: z.literal('invalid_move'),
 	message: z.string(),
+	errors: z.array(z.string())
 });
 
 export const gameWaitingEventSchema = z.object({
-	type: z.literal("waiting_for_player")
+	type: z.literal('waiting_for_player')
 });
 
 export const gameStartedEventSchema = z.object({
-	type: z.literal("game_started"),
+	type: z.literal('game_started'),
 	gameId: z.string().min(1)
 });
 
-export const gameServerEventSchema = z.discriminatedUnion("type", [
+export const gameServerEventSchema = z.discriminatedUnion('type', [
 	gameWaitingEventSchema,
 	gameStartedEventSchema,
 	gameStateSyncEventSchema,
-	gameInvalidMoveEventSchema,
+	gameInvalidMoveEventSchema
 ]);
 
 export type StackIndex = z.infer<typeof stackIndexSchema>;

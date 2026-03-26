@@ -1,7 +1,14 @@
 <script lang="ts">
-	import { gameServerEventSchema } from '@capstone/contracts';
+	import {
+		gameServerEventSchema,
+		type GameServerEvent,
+		type GameSnapshot,
+		type MakeMoveCommand
+	} from '@capstone/contracts';
+	import { dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { getAuthClient } from '$lib/auth-client';
+	import { Game } from '@capstone/game-logic';
 	import { Client, type Room } from 'colyseus.js';
 	let {
 		data
@@ -22,25 +29,139 @@
 	let matchmakingMessage = $state<string | null>(null);
 	let room: Room | null = null;
 
-	type CompatClient = Client & {
-		getHttpEndpoint?: (segments?: string) => string;
-		consumeSeatReservation?: (response: unknown) => Promise<Room>;
+	type CapstoneDebug = {
+		room: Room | null;
+		getRoomId: () => string | null;
+		getSyncSeq: () => number;
+		game: Game | null;
+		getGame: () => Game | null;
+		lastEvent: GameServerEvent | null;
+		lastSnapshot: GameSnapshot | null;
+		events: GameServerEvent[];
+		getSnapshot: () => GameSnapshot | null;
+		getMoves: () => GameSnapshot['moves'];
+		sendMove: (from: number, to: number) => void;
+		awaitNextSync: (timeoutMs?: number) => Promise<GameSnapshot>;
+		sendMoveAndWait: (from: number, to: number, timeoutMs?: number) => Promise<GameSnapshot>;
+		joinByRoomId: (roomId: string) => Promise<void>;
+		clearEvents: () => void;
 	};
 
-	async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
-		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		try {
-			return await Promise.race([
-				promise,
-				new Promise<T>((_, reject) => {
-					timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-				})
-			]);
-		} finally {
-			if (timeoutId) {
-				clearTimeout(timeoutId);
+	let debugLastEvent: GameServerEvent | null = null;
+	let debugLastSnapshot: GameSnapshot | null = null;
+	let debugEvents: GameServerEvent[] = [];
+	let debugSyncSeq = 0;
+	let debugGame: Game | null = null;
+	let debugGameSeq = -1;
+
+	function attachDebugHelpers(currentRoom: Room | null) {
+		if (!dev || typeof window === 'undefined') return;
+		const debugWindow = window as Window & {
+			__capstoneDebug?: CapstoneDebug;
+			__capstoneRoom?: Room | null;
+		};
+		debugWindow.__capstoneDebug = {
+			room: currentRoom,
+			getRoomId: () => currentRoom?.roomId ?? null,
+			getSyncSeq: () => debugSyncSeq,
+			game: debugGame,
+			getGame: () => debugGame,
+			lastEvent: debugLastEvent,
+			lastSnapshot: debugLastSnapshot,
+			events: debugEvents,
+			getSnapshot: () => debugLastSnapshot,
+			getMoves: () => debugLastSnapshot?.moves ?? [],
+			// Friendly args:
+			// - from: pool stack index (0-2) of the *current turn* player
+			// - to: board stack index (0-15)
+			sendMove: (from: number, to: number) => {
+				const poolIndex = Number(from);
+				const boardIndex = Number(to);
+
+				const game = debugGame;
+				if (!game) throw new Error('No hydrated game snapshot yet.');
+
+				const fromStackIndex = game.currentTurn.pool.stacks[poolIndex]?.index;
+				if (fromStackIndex === undefined) {
+					throw new Error(`Invalid pool index ${poolIndex}. Expected 0-2.`);
+				}
+				if (!Number.isInteger(boardIndex) || boardIndex < 0 || boardIndex > 15) {
+					throw new Error(`Invalid board index ${boardIndex}. Expected 0-15.`);
+				}
+
+				const command: MakeMoveCommand = {
+					type: 'make_move',
+					from: fromStackIndex,
+					to: boardIndex
+				};
+				currentRoom?.send('command', command);
+			},
+			awaitNextSync: async (timeoutMs = 5000) => {
+				if (!currentRoom) throw new Error('No room connected.');
+				const startSeq = debugSyncSeq;
+
+				return await new Promise<GameSnapshot>((resolve, reject) => {
+					const timeoutId = setTimeout(() => {
+						unsub();
+						reject(new Error('Timed out waiting for state_sync.'));
+					}, timeoutMs);
+
+					const unsub = currentRoom.onMessage('event', (payload: unknown) => {
+						const parsed = gameServerEventSchema.safeParse(payload);
+						if (!parsed.success) return;
+						if (parsed.data.type !== 'state_sync') return;
+						if (debugSyncSeq <= startSeq) return;
+						clearTimeout(timeoutId);
+						unsub();
+						resolve(parsed.data.snapshot);
+					});
+				});
+			},
+			sendMoveAndWait: async (from: number, to: number, timeoutMs = 5000) => {
+				const startSeq = debugSyncSeq;
+				debugWindow.__capstoneDebug?.sendMove(from, to);
+				const snapshot = await debugWindow.__capstoneDebug?.awaitNextSync(timeoutMs);
+				if (!snapshot) throw new Error('No snapshot received.');
+				// Ensure this was actually a new sync (not initial state).
+				if (debugSyncSeq <= startSeq) throw new Error('No new state_sync received.');
+				return snapshot;
+			},
+			joinByRoomId: async (roomId: string) => {
+				if (!data.user) return;
+				const client = new Client(data.colyseusUrl);
+				const joined = await client.joinById(roomId, { userId: data.user.id });
+				room = joined;
+				wireRoom(joined);
+			},
+			clearEvents: () => {
+				debugEvents = [];
+				attachDebugHelpers(currentRoom);
+			}
+		};
+	}
+
+	function trackDebugEvent(event: GameServerEvent) {
+		debugLastEvent = event;
+		if (event.type === 'state_sync') {
+			debugLastSnapshot = event.snapshot;
+			debugSyncSeq += 1;
+
+			if (debugGameSeq !== debugSyncSeq) {
+				debugGame = Game.deserialize(event.snapshot.moves);
+				debugGameSeq = debugSyncSeq;
 			}
 		}
+		debugEvents = [...debugEvents.slice(-49), event];
+	}
+
+	function exposeRoomForDev(currentRoom: Room | null) {
+		if (!dev || typeof window === 'undefined') return;
+		const debugWindow = window as Window & {
+			__capstoneDebug?: CapstoneDebug;
+			__capstoneRoom?: Room | null;
+		};
+		debugWindow.__capstoneRoom = currentRoom;
+		attachDebugHelpers(currentRoom);
 	}
 
 	async function signInWithGitHub() {
@@ -68,6 +189,14 @@
 	}
 
 	function wireRoom(currentRoom: Room) {
+		exposeRoomForDev(currentRoom);
+		currentRoom.onLeave(() => {
+			if (room === currentRoom) {
+				room = null;
+			}
+			exposeRoomForDev(null);
+		});
+
 		currentRoom.onMessage('event', (payload: unknown) => {
 			const parsed = gameServerEventSchema.safeParse(payload);
 			if (!parsed.success) {
@@ -75,6 +204,8 @@
 				matchmakingMessage = 'Received unexpected realtime event.';
 				return;
 			}
+			trackDebugEvent(parsed.data);
+			attachDebugHelpers(currentRoom);
 
 			if (parsed.data.type === 'waiting_for_player') {
 				matchmakingState = 'waiting';
@@ -104,62 +235,13 @@
 
 		try {
 			const client = new Client(data.colyseusUrl);
-			const clientCompat = client as CompatClient;
-			if (!clientCompat.getHttpEndpoint || !clientCompat.consumeSeatReservation) {
-				throw new Error('Realtime client is missing matchmaking methods.');
-			}
-
-			const endpoint = clientCompat.getHttpEndpoint('matchmake/joinOrCreate/capstone');
-			const response = await withTimeout(
-				fetch(endpoint, {
-					method: 'POST',
-					headers: {
-						Accept: 'application/json',
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({ userId: data.user.id })
-				}),
-				8000,
-				'Timed out while creating room.'
-			);
-
-			const seat = (await response.json()) as {
-				name: string;
-				roomId: string;
-				processId: string;
-				sessionId: string;
-				protocol?: string;
-				publicAddress?: string;
-				reconnectionToken?: string;
-				devMode?: boolean;
-				error?: string;
-			};
-
-			if (!response.ok || seat.error) {
-				throw new Error(seat.error ?? 'Unable to start matchmaking right now.');
-			}
-
-			room = await withTimeout(
-				clientCompat.consumeSeatReservation({
-					sessionId: seat.sessionId,
-					reconnectionToken: seat.reconnectionToken,
-					protocol: seat.protocol,
-					devMode: seat.devMode,
-					room: {
-						name: seat.name,
-						roomId: seat.roomId,
-						processId: seat.processId,
-						publicAddress: seat.publicAddress
-					}
-				}),
-				8000,
-				'Timed out while connecting to room.'
-			);
+			// Use Colyseus matchmaker so two different clients get paired into the same room.
+			room = await client.joinOrCreate('capstone', { userId: data.user.id });
 			wireRoom(room);
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			matchmakingState = 'failed';
-			matchmakingMessage =
-				error instanceof Error ? error.message : 'Unable to start matchmaking right now.';
+			matchmakingMessage = message || 'Unable to start matchmaking right now.';
 		} finally {
 			isStartingGame = false;
 		}
@@ -191,7 +273,7 @@
 					type="button"
 					class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
 					disabled={isStartingGame || matchmakingState === 'waiting'}
-					onclick={startNewGame}
+					onclick={() => void startNewGame()}
 				>
 					{isStartingGame ? 'Starting...' : 'New Game'}
 				</button>
