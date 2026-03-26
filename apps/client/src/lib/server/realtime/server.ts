@@ -1,18 +1,37 @@
-import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Server } from "colyseus";
-import { createServer, type Server as HttpServer } from "node:http";
 import { env } from "$env/dynamic/private";
 import { CapstoneRoom } from "./capstone-room";
 
 let serverReady: Promise<void> | null = null;
-let serverInstance: HttpServer | null = null;
+const currentGameByUserId = new Map<string, string>();
 
 export function getColyseusPort(): number {
 	return Number(env.COLYSEUS_PORT ?? 2567);
 }
 
-export function getColyseusPublicUrl(): string {
-	return env.PUBLIC_COLYSEUS_URL ?? `ws://localhost:${getColyseusPort()}`;
+export function getColyseusPublicUrl(requestUrl?: URL): string {
+	if (env.PUBLIC_COLYSEUS_URL) {
+		return env.PUBLIC_COLYSEUS_URL;
+	}
+
+	if (requestUrl) {
+		const wsProtocol = requestUrl.protocol === "https:" ? "wss:" : "ws:";
+		return `${wsProtocol}//${requestUrl.hostname}:${getColyseusPort()}`;
+	}
+
+	return `ws://localhost:${getColyseusPort()}`;
+}
+
+export function setCurrentGameForUser(userId: string, gameId: string): void {
+	currentGameByUserId.set(userId, gameId);
+}
+
+export function clearCurrentGameForUser(userId: string): void {
+	currentGameByUserId.delete(userId);
+}
+
+export function getCurrentGameForUser(userId: string): string | null {
+	return currentGameByUserId.get(userId) ?? null;
 }
 
 export function ensureRealtimeServer(): Promise<void> {
@@ -22,19 +41,20 @@ export function ensureRealtimeServer(): Promise<void> {
 
 	serverReady = (async () => {
 		const port = getColyseusPort();
-		serverInstance = createServer();
-		const gameServer = new Server({
-			transport: new WebSocketTransport({
-				server: serverInstance
-			})
-		});
+		const gameServer = new Server();
 
 		gameServer.define("capstone", CapstoneRoom);
-
-		await new Promise<void>((resolve, reject) => {
-			serverInstance?.once("error", reject);
-			serverInstance?.listen(port, () => resolve());
-		});
+		try {
+			await gameServer.listen(port);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (message.includes("EADDRINUSE")) {
+				// Another local dev process already owns the realtime port.
+				// Treat this as healthy and let requests continue.
+				return;
+			}
+			throw error;
+		}
 	})();
 
 	return serverReady;

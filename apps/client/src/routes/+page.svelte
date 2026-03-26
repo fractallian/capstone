@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { gameServerEventSchema } from '@capstone/contracts';
+	import { goto } from '$app/navigation';
 	import { getAuthClient } from '$lib/auth-client';
 	import { Client, type Room } from 'colyseus.js';
 	let {
@@ -7,19 +8,40 @@
 	}: {
 		data: {
 			colyseusUrl: string;
+			currentGameId: string | null;
 			githubLoginEnabled: boolean;
 			hasSession: boolean;
-			user: { name: string | null; email: string | null } | null;
+			user: { id: string; name: string | null; email: string | null } | null;
 		};
 	} = $props();
 
 	let isSigningIn = $state(false);
 	let isSigningOut = $state(false);
-	let connectionState = $state<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
+	let isStartingGame = $state(false);
+	let matchmakingState = $state<'idle' | 'waiting' | 'matched' | 'failed'>('idle');
+	let matchmakingMessage = $state<string | null>(null);
 	let room: Room | null = null;
-	let gameLog = $state<string[]>([]);
-	let from = $state(16);
-	let to = $state(0);
+
+	type CompatClient = Client & {
+		getHttpEndpoint?: (segments?: string) => string;
+		consumeSeatReservation?: (response: unknown) => Promise<Room>;
+	};
+
+	async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		try {
+			return await Promise.race([
+				promise,
+				new Promise<T>((_, reject) => {
+					timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+				})
+			]);
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId);
+			}
+		}
+	}
 
 	async function signInWithGitHub() {
 		isSigningIn = true;
@@ -45,41 +67,102 @@
 		}
 	}
 
-	async function connectToRoom() {
-		connectionState = 'connecting';
-		try {
-			const client = new Client(data.colyseusUrl);
-			room = await client.joinOrCreate('capstone');
-			room.onMessage('event', (payload: unknown) => {
-				const parsed = gameServerEventSchema.safeParse(payload);
-				if (!parsed.success) {
-					gameLog = ['Received unexpected event payload.', ...gameLog];
-					return;
-				}
+	function wireRoom(currentRoom: Room) {
+		currentRoom.onMessage('event', (payload: unknown) => {
+			const parsed = gameServerEventSchema.safeParse(payload);
+			if (!parsed.success) {
+				matchmakingState = 'failed';
+				matchmakingMessage = 'Received unexpected realtime event.';
+				return;
+			}
 
-				if (parsed.data.type === 'state_sync') {
-					gameLog = [
-						`Turn ${parsed.data.snapshot.currentTurnIndex + 1}, moves: ${parsed.data.snapshot.moves.length}`,
-						...gameLog
-					];
-					return;
-				}
+			if (parsed.data.type === 'waiting_for_player') {
+				matchmakingState = 'waiting';
+				matchmakingMessage = 'Waiting for another player...';
+				return;
+			}
 
-				gameLog = [parsed.data.message, ...gameLog];
-			});
-			connectionState = 'connected';
-		} catch {
-			connectionState = 'failed';
-		}
+			if (parsed.data.type === 'game_started') {
+				matchmakingState = 'matched';
+				matchmakingMessage = null;
+				void goto('/game');
+				return;
+			}
+
+			if (parsed.data.type === 'invalid_move') {
+				matchmakingState = 'failed';
+				matchmakingMessage = parsed.data.message;
+			}
+		});
 	}
 
-	function sendMove() {
-		if (!room) return;
-		room.send('command', {
-			type: 'make_move',
-			from,
-			to
-		});
+	async function startNewGame() {
+		if (!data.user) return;
+		isStartingGame = true;
+		matchmakingState = 'idle';
+		matchmakingMessage = null;
+
+		try {
+			const client = new Client(data.colyseusUrl);
+			const clientCompat = client as CompatClient;
+			if (!clientCompat.getHttpEndpoint || !clientCompat.consumeSeatReservation) {
+				throw new Error('Realtime client is missing matchmaking methods.');
+			}
+
+			const endpoint = clientCompat.getHttpEndpoint('matchmake/joinOrCreate/capstone');
+			const response = await withTimeout(
+				fetch(endpoint, {
+					method: 'POST',
+					headers: {
+						Accept: 'application/json',
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({ userId: data.user.id })
+				}),
+				8000,
+				'Timed out while creating room.'
+			);
+
+			const seat = (await response.json()) as {
+				name: string;
+				roomId: string;
+				processId: string;
+				sessionId: string;
+				protocol?: string;
+				publicAddress?: string;
+				reconnectionToken?: string;
+				devMode?: boolean;
+				error?: string;
+			};
+
+			if (!response.ok || seat.error) {
+				throw new Error(seat.error ?? 'Unable to start matchmaking right now.');
+			}
+
+			room = await withTimeout(
+				clientCompat.consumeSeatReservation({
+					sessionId: seat.sessionId,
+					reconnectionToken: seat.reconnectionToken,
+					protocol: seat.protocol,
+					devMode: seat.devMode,
+					room: {
+						name: seat.name,
+						roomId: seat.roomId,
+						processId: seat.processId,
+						publicAddress: seat.publicAddress
+					}
+				}),
+				8000,
+				'Timed out while connecting to room.'
+			);
+			wireRoom(room);
+		} catch (error) {
+			matchmakingState = 'failed';
+			matchmakingMessage =
+				error instanceof Error ? error.message : 'Unable to start matchmaking right now.';
+		} finally {
+			isStartingGame = false;
+		}
 	}
 </script>
 
@@ -102,6 +185,35 @@
 			>
 				{isSigningOut ? 'Signing out…' : 'Log out'}
 			</button>
+
+			<div class="mt-2 flex flex-col items-center gap-2">
+				<button
+					type="button"
+					class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+					disabled={isStartingGame || matchmakingState === 'waiting'}
+					onclick={startNewGame}
+				>
+					{isStartingGame ? 'Starting...' : 'New Game'}
+				</button>
+
+				{#if data.currentGameId}
+					<button
+						type="button"
+						class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+						onclick={() => goto('/game')}
+					>
+						Go to current game
+					</button>
+				{/if}
+			</div>
+
+			{#if matchmakingState === 'waiting'}
+				<p class="text-sm text-slate-700">waiting for another player</p>
+			{/if}
+
+			{#if matchmakingMessage}
+				<p class="text-sm text-rose-700">{matchmakingMessage}</p>
+			{/if}
 		</div>
 	{:else if data.githubLoginEnabled}
 		<div class="flex flex-col items-center gap-3">
@@ -147,72 +259,8 @@
 		</p>
 	{/if}
 
-	<section class="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-		<h2 class="text-lg font-semibold text-slate-900">Realtime Game Gateway</h2>
-		<p class="mt-1 text-sm text-slate-600">
-			Server URL:
-			<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">{data.colyseusUrl}</code>
-		</p>
-
-		<div class="mt-4 flex flex-wrap items-center gap-2">
-			<button
-				type="button"
-				class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-				disabled={connectionState === 'connecting' || connectionState === 'connected'}
-				onclick={connectToRoom}
-			>
-				{connectionState === 'connected'
-					? 'Connected'
-					: connectionState === 'connecting'
-						? 'Connecting...'
-						: 'Connect to Capstone room'}
-			</button>
-			{#if connectionState === 'failed'}
-				<span class="text-sm text-rose-700">Connection failed. Check server logs and URL.</span>
-			{/if}
-		</div>
-
-		<div class="mt-4 grid grid-cols-[auto_1fr] items-center gap-2 text-sm">
-			<label for="fromStack" class="text-slate-700">From stack</label>
-			<input
-				id="fromStack"
-				type="number"
-				min="0"
-				max="21"
-				bind:value={from}
-				class="rounded-md border border-slate-300 px-2 py-1"
-			/>
-			<label for="toStack" class="text-slate-700">To stack</label>
-			<input
-				id="toStack"
-				type="number"
-				min="0"
-				max="21"
-				bind:value={to}
-				class="rounded-md border border-slate-300 px-2 py-1"
-			/>
-		</div>
-
-		<button
-			type="button"
-			class="mt-3 inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-			disabled={connectionState !== 'connected'}
-			onclick={sendMove}
-		>
-			Send move command
-		</button>
-
-		<div class="mt-4">
-			<h3 class="text-sm font-semibold text-slate-800">Event log</h3>
-			<ul class="mt-1 space-y-1 text-sm text-slate-700">
-				{#if gameLog.length === 0}
-					<li>No events yet.</li>
-				{:else}
-					{#each gameLog.slice(0, 6) as entry}
-						<li>{entry}</li>
-					{/each}
-				{/if}
-			</ul>
-		</div>
-	</section>
+	<p class="text-xs text-slate-500">
+		Realtime server:
+		<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">{data.colyseusUrl}</code>
+	</p>
 </main>

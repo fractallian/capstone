@@ -22,6 +22,7 @@ export const gameCommandSchema = z.discriminatedUnion("type", [makeMoveCommandSc
 
 export const gameStateSyncEventSchema = z.object({
 	type: z.literal("state_sync"),
+	gameId: z.string().min(1),
 	snapshot: gameSnapshotSchema,
 });
 
@@ -30,7 +31,18 @@ export const gameInvalidMoveEventSchema = z.object({
 	message: z.string(),
 });
 
+export const gameWaitingEventSchema = z.object({
+	type: z.literal("waiting_for_player")
+});
+
+export const gameStartedEventSchema = z.object({
+	type: z.literal("game_started"),
+	gameId: z.string().min(1)
+});
+
 export const gameServerEventSchema = z.discriminatedUnion("type", [
+	gameWaitingEventSchema,
+	gameStartedEventSchema,
 	gameStateSyncEventSchema,
 	gameInvalidMoveEventSchema,
 ]);
@@ -40,6 +52,8 @@ export type SerializedMoveContract = z.infer<typeof serializedMoveSchema>;
 export type GameSnapshot = z.infer<typeof gameSnapshotSchema>;
 export type MakeMoveCommand = z.infer<typeof makeMoveCommandSchema>;
 export type GameCommand = z.infer<typeof gameCommandSchema>;
+export type GameWaitingEvent = z.infer<typeof gameWaitingEventSchema>;
+export type GameStartedEvent = z.infer<typeof gameStartedEventSchema>;
 export type GameStateSyncEvent = z.infer<typeof gameStateSyncEventSchema>;
 export type GameInvalidMoveEvent = z.infer<typeof gameInvalidMoveEventSchema>;
 export type GameServerEvent = z.infer<typeof gameServerEventSchema>;
