@@ -1,0 +1,19 @@
+{
+	"name": "capstone-monorepo",
+	"private": true,
+	"packageManager": "pnpm@10.30.3",
+	"scripts": {
+		"build": "turbo run build",
+		"dev": "turbo run dev",
+		"test": "turbo run test",
+		"lint": "turbo run lint",
+		"check": "turbo run check",
+		"format": "turbo run format"
+	},
+	"devDependencies": {
+		"prettier": "^3.8.1",
+		"prettier-plugin-svelte": "^3.4.1",
+		"prettier-plugin-tailwindcss": "^0.7.2",
+		"turbo": "^2.8.20"
+	}
+}

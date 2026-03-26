@@ -1,0 +1,62 @@
+
+> capstone@0.0.1 build /Users/jeremydunn/Documents/Projects/capstone/apps/client
+> vite build
+
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 736 modules transformed.
+rendering chunks...
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 153 modules transformed.
+rendering chunks...
+computing gzip size...
+.svelte-kit/output/client/_app/version.json                        0.03 kB │ gzip:  0.05 kB
+.svelte-kit/output/client/.vite/manifest.json                      3.06 kB │ gzip:  0.64 kB
+.svelte-kit/output/client/_app/immutable/assets/0.DUpNu5oF.css     9.81 kB │ gzip:  2.45 kB
+.svelte-kit/output/client/_app/immutable/entry/start.CTFR23az.js   0.08 kB │ gzip:  0.09 kB
+.svelte-kit/output/client/_app/immutable/nodes/2.B7Q_mzEI.js       0.30 kB │ gzip:  0.23 kB
+.svelte-kit/output/client/_app/immutable/chunks/CTqsZXxF.js        0.32 kB │ gzip:  0.25 kB
+.svelte-kit/output/client/_app/immutable/nodes/1.BuFJaQml.js       1.00 kB │ gzip:  0.58 kB
+.svelte-kit/output/client/_app/immutable/chunks/du8w0Y59.js        1.23 kB │ gzip:  0.69 kB
+.svelte-kit/output/client/_app/immutable/chunks/B4qZaqxn.js        1.49 kB │ gzip:  0.66 kB
+.svelte-kit/output/client/_app/immutable/nodes/0.CbOcVJxx.js       3.18 kB │ gzip:  1.45 kB
+.svelte-kit/output/client/_app/immutable/chunks/CYx8YZiD.js        5.81 kB │ gzip:  2.70 kB
+.svelte-kit/output/client/_app/immutable/entry/app.CkO_-7JG.js     7.15 kB │ gzip:  3.33 kB
+.svelte-kit/output/client/_app/immutable/chunks/BAXMGIch.js       22.97 kB │ gzip:  9.03 kB
+.svelte-kit/output/client/_app/immutable/chunks/CeCPKI2Z.js       26.36 kB │ gzip: 10.36 kB
+✓ built in 305ms
+.svelte-kit/output/server/.vite/manifest.json                             8.36 kB
+.svelte-kit/output/server/_app/immutable/assets/_layout.DYggLaFs.css      9.78 kB
+.svelte-kit/output/server/chunks/false.js                                 0.04 kB
+.svelte-kit/output/server/entries/hooks.server.js                         0.11 kB
+.svelte-kit/output/server/entries/pages/_page.svelte.js                   0.22 kB
+.svelte-kit/output/server/chunks/environment.js                           0.25 kB
+.svelte-kit/output/server/chunks/shared-server.js                         0.28 kB
+.svelte-kit/output/server/chunks/server.js                                0.45 kB
+.svelte-kit/output/server/internal.js                                     0.46 kB
+.svelte-kit/output/server/chunks/utils.js                                 1.15 kB
+.svelte-kit/output/server/entries/fallbacks/error.svelte.js               1.39 kB
+.svelte-kit/output/server/entries/pages/_layout.svelte.js                 2.48 kB
+.svelte-kit/output/server/chunks/utils2.js                                3.14 kB
+.svelte-kit/output/server/chunks/internal.js                              3.17 kB
+.svelte-kit/output/server/chunks/url.js                                   3.21 kB
+.svelte-kit/output/server/chunks/exports.js                               3.82 kB
+.svelte-kit/output/server/chunks/bun-sqlite-dialect.js                    4.32 kB
+.svelte-kit/output/server/chunks/node-sqlite-dialect.js                   4.33 kB
+.svelte-kit/output/server/chunks/query.js                                 9.08 kB
+.svelte-kit/output/server/chunks/index2.js                                9.52 kB
+.svelte-kit/output/server/remote-entry.js                                10.49 kB
+.svelte-kit/output/server/chunks/index3.js                               14.71 kB
+.svelte-kit/output/server/chunks/shared.js                               43.21 kB
+.svelte-kit/output/server/chunks/index.js                                48.38 kB
+.svelte-kit/output/server/chunks/root.js                                 81.00 kB
+.svelte-kit/output/server/index.js                                      135.40 kB
+.svelte-kit/output/server/chunks/hooks.server.js                      1,541.83 kB
+✓ built in 2.32s
+
+Run npm run preview to preview your production build locally.
+
+> Using @sveltejs/adapter-auto
+  Could not detect a supported production environment. See https://svelte.dev/docs/kit/adapters to learn how to configure your app to run on the platform of your choosing
+  ✔ done
