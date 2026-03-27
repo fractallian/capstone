@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { Game } from "./Game";
-import { Piece, PieceSize } from "./Piece";
-import { type Player, PlayerColor } from "./Player";
-import { Stack, StackLocation } from "./Stack";
+import { beforeEach, describe, expect, it } from 'vitest';
+import { Game } from './Game';
+import { Piece, PieceSize } from './Piece';
+import { type Player, PlayerColor } from './Player';
+import { Stack, StackLocation } from './Stack';
 
-describe("Piece", () => {
+describe('Piece', () => {
 	let game: Game;
 	let player1: Player;
 	let player2: Player;
@@ -17,7 +17,7 @@ describe("Piece", () => {
 		stack = new Stack(game, StackLocation.board);
 	});
 
-	it("creates a piece with correct properties", () => {
+	it('creates a piece with correct properties', () => {
 		const piece = new Piece(player1, PieceSize.Three, stack);
 
 		expect(piece.player).toBe(player1);
@@ -25,14 +25,14 @@ describe("Piece", () => {
 		expect(piece.stack).toBe(stack);
 	});
 
-	it("has all valid piece sizes", () => {
+	it('has all valid piece sizes', () => {
 		expect(PieceSize.One).toBe(0);
 		expect(PieceSize.Two).toBe(1);
 		expect(PieceSize.Three).toBe(2);
 		expect(PieceSize.Four).toBe(3);
 	});
 
-	it("can create pieces for different players", () => {
+	it('can create pieces for different players', () => {
 		const piece1 = new Piece(player1, PieceSize.One, stack);
 		const piece2 = new Piece(player2, PieceSize.Two, stack);
 
@@ -42,13 +42,8 @@ describe("Piece", () => {
 		expect(piece2.player.color).toBe(PlayerColor.White);
 	});
 
-	it("can create pieces of all sizes", () => {
-		const sizes = [
-			PieceSize.One,
-			PieceSize.Two,
-			PieceSize.Three,
-			PieceSize.Four,
-		];
+	it('can create pieces of all sizes', () => {
+		const sizes = [PieceSize.One, PieceSize.Two, PieceSize.Three, PieceSize.Four];
 
 		sizes.forEach((size, index) => {
 			const piece = new Piece(player1, size, stack);
@@ -56,7 +51,7 @@ describe("Piece", () => {
 		});
 	});
 
-	it("maintains reference to its stack", () => {
+	it('maintains reference to its stack', () => {
 		const boardStack = new Stack(game, StackLocation.board);
 		const poolStack = new Stack(game, StackLocation.pool);
 

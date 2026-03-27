@@ -67,6 +67,17 @@ export class Game {
 	static deserialize(moves: SerializedMove[]): Game {
 		const game = new Game();
 		for (const move of moves) {
+			if (!Number.isInteger(move.from) || !Number.isInteger(move.to)) {
+				throw new Error('Invalid serialized move: stack indexes must be integers.');
+			}
+			if (
+				move.from < 0 ||
+				move.to < 0 ||
+				move.from >= game.stacks.length ||
+				move.to >= game.stacks.length
+			) {
+				throw new Error('Invalid serialized move: stack index out of range.');
+			}
 			game.makeMove(game.stacks[move.from], game.stacks[move.to], false);
 		}
 		return game;

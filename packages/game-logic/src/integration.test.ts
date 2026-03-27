@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { Game, type SerializedMove } from "./Game";
-import { InvalidMoveError } from "./Move";
-import { PieceSize } from "./Piece";
-import { viewGameState } from "./viewGameState";
+import { describe, expect, it } from 'vitest';
+import { Game, type SerializedMove } from './Game';
+import { InvalidMoveError } from './Move';
+import { PieceSize } from './Piece';
+import { viewGameState } from './viewGameState';
 
-describe("Capstone Game Integration Tests", () => {
-	describe("Complete game scenarios", () => {
-		it("handles a complete winning game scenario", () => {
+describe('Capstone Game Integration Tests', () => {
+	describe('Complete game scenarios', () => {
+		it('handles a complete winning game scenario', () => {
 			const game = new Game();
 
 			// Player 1 strategy: try to get 4 in a row horizontally
@@ -26,7 +26,7 @@ describe("Capstone Game Integration Tests", () => {
 			expect(winner).toBe(game.player1);
 		});
 
-		it("handles complex piece stacking and movement", () => {
+		it('handles complex piece stacking and movement', () => {
 			const game = new Game();
 
 			// Build up complex stacks - need to place smaller pieces first
@@ -55,7 +55,7 @@ describe("Capstone Game Integration Tests", () => {
 			expect(game.board.stacks[3][3].topPiece()?.size).toBe(PieceSize.Four);
 		});
 
-		it("handles three-in-a-row covering rules correctly", () => {
+		it('handles three-in-a-row covering rules correctly', () => {
 			// Create a specific scenario where player2 gets 3 in a row
 			const moves: SerializedMove[] = [
 				{ from: 16, to: 0 }, // P1
@@ -63,7 +63,7 @@ describe("Capstone Game Integration Tests", () => {
 				{ from: 16, to: 1 }, // P1
 				{ from: 19, to: 5 }, // P2 (1,1)
 				{ from: 16, to: 2 }, // P1
-				{ from: 19, to: 6 }, // P2 (1,2) - now P2 has 3 in a row horizontally
+				{ from: 19, to: 6 } // P2 (1,2) - now P2 has 3 in a row horizontally
 			];
 
 			const game = Game.deserialize(moves);
@@ -79,7 +79,7 @@ describe("Capstone Game Integration Tests", () => {
 			}).toThrow(InvalidMoveError);
 		});
 
-		it("handles winner detection across different line types", () => {
+		it('handles winner detection across different line types', () => {
 			const game = new Game();
 
 			// Test horizontal win
@@ -93,7 +93,7 @@ describe("Capstone Game Integration Tests", () => {
 			expect(game.board.winner()).toBe(game.player1);
 		});
 
-		it("handles diagonal winner detection", () => {
+		it('handles diagonal winner detection', () => {
 			const game = new Game();
 
 			// Create diagonal win for player1
@@ -112,8 +112,8 @@ describe("Capstone Game Integration Tests", () => {
 		});
 	});
 
-	describe("Serialization and deserialization edge cases", () => {
-		it("handles complex game serialization roundtrip", () => {
+	describe('Serialization and deserialization edge cases', () => {
+		it('handles complex game serialization roundtrip', () => {
 			const _game = new Game();
 
 			// Create complex game state with moves and stacking
@@ -123,7 +123,7 @@ describe("Capstone Game Integration Tests", () => {
 				{ from: 16, to: 6 }, // P1 pool to board
 				{ from: 19, to: 10 }, // P2 pool to board
 				{ from: 5, to: 10 }, // P1 board to board (stacking)
-				{ from: 19, to: 5 }, // P2 pool to now-empty board space
+				{ from: 19, to: 5 } // P2 pool to now-empty board space
 			];
 
 			const gameFromMoves = Game.deserialize(originalMoves);
@@ -133,12 +133,10 @@ describe("Capstone Game Integration Tests", () => {
 
 			// Double-check by deserializing again
 			const gameFromReserialized = Game.deserialize(reserializedMoves);
-			expect(viewGameState(gameFromReserialized)).toEqual(
-				viewGameState(gameFromMoves),
-			);
+			expect(viewGameState(gameFromReserialized)).toEqual(viewGameState(gameFromMoves));
 		});
 
-		it("handles edge case of empty and single-move games", () => {
+		it('handles edge case of empty and single-move games', () => {
 			// Empty game
 			const emptyGame = Game.deserialize([]);
 			expect(emptyGame.moves.length).toBe(0);
@@ -150,10 +148,10 @@ describe("Capstone Game Integration Tests", () => {
 			expect(singleMoveGame.currentTurn).toBe(singleMoveGame.player2);
 		});
 
-		it("handles invalid move sequences in deserialization", () => {
+		it('handles invalid move sequences in deserialization', () => {
 			const invalidMoves: SerializedMove[] = [
 				{ from: 16, to: 0 },
-				{ from: 16, to: 1 }, // Same player moving twice - logically invalid but structurally valid
+				{ from: 16, to: 1 } // Same player moving twice - logically invalid but structurally valid
 			];
 
 			// Should not throw during deserialization (validation is disabled)
@@ -161,8 +159,8 @@ describe("Capstone Game Integration Tests", () => {
 		});
 	});
 
-	describe("Boundary and stress tests", () => {
-		it("handles maximum piece stacking correctly", () => {
+	describe('Boundary and stress tests', () => {
+		it('handles maximum piece stacking correctly', () => {
 			const game = new Game();
 			const targetStack = game.board.stacks[2][2];
 
@@ -189,7 +187,7 @@ describe("Capstone Game Integration Tests", () => {
 			expect(targetStack.topPiece()?.size).toBe(PieceSize.Three); // Size 2 on top
 		});
 
-		it("handles all pool pieces being used", () => {
+		it('handles all pool pieces being used', () => {
 			const game = new Game();
 
 			// Simplified approach: use pieces from pool until they're exhausted
@@ -208,10 +206,7 @@ describe("Capstone Game Integration Tests", () => {
 						for (let row = 0; row < 4; row++) {
 							for (let col = 0; col < 4; col++) {
 								if (game.board.stacks[row][col].isEmpty()) {
-									game.makeMove(
-										currentPlayer.pool.stacks[stackIdx],
-										game.board.stacks[row][col],
-									);
+									game.makeMove(currentPlayer.pool.stacks[stackIdx], game.board.stacks[row][col]);
 									foundValidMove = true;
 									movesCount++;
 									break;
@@ -229,12 +224,12 @@ describe("Capstone Game Integration Tests", () => {
 			// Some pieces should have been moved to the board
 			const totalP1Pieces = game.player1.pool.stacks.reduce(
 				(sum, stack) => sum + stack.pieces.length,
-				0,
+				0
 			);
 			expect(totalP1Pieces).toBeLessThan(12); // Some pieces should be on the board
 		});
 
-		it("handles complex covering scenarios", () => {
+		it('handles complex covering scenarios', () => {
 			const _game = new Game();
 
 			// Set up scenario where covering is allowed due to three-in-a-row
@@ -244,34 +239,31 @@ describe("Capstone Game Integration Tests", () => {
 				{ from: 19, to: 4 }, // P2 size 3 to (1,0)
 				{ from: 16, to: 1 }, // P1 size 2 to (0,1)
 				{ from: 19, to: 5 }, // P2 size 2 to (1,1)
-				{ from: 16, to: 2 }, // P1 size 1 to (0,2) - now has 3 in row with mixed sizes
+				{ from: 16, to: 2 } // P1 size 1 to (0,2) - now has 3 in row with mixed sizes
 			];
 
 			const setupGame = Game.deserialize(setupMoves);
 
 			// P2 should be able to cover P1's middle piece (size 2) with a larger piece (size 3)
 			expect(() => {
-				setupGame.makeMove(
-					setupGame.player2.pool.stacks[1],
-					setupGame.board.stacks[0][1],
-				);
+				setupGame.makeMove(setupGame.player2.pool.stacks[1], setupGame.board.stacks[0][1]);
 			}).not.toThrow();
 		});
 	});
 
-	describe("Game state consistency", () => {
-		it("maintains consistent game state through complex operations", () => {
+	describe('Game state consistency', () => {
+		it('maintains consistent game state through complex operations', () => {
 			const game = new Game();
 
 			// Track initial state
 			const initialStackCount = game.stacks.length;
 			const initialP1Pieces = game.player1.pool.stacks.reduce(
 				(sum, stack) => sum + stack.pieces.length,
-				0,
+				0
 			);
 			const initialP2Pieces = game.player2.pool.stacks.reduce(
 				(sum, stack) => sum + stack.pieces.length,
-				0,
+				0
 			);
 
 			// Make several moves
@@ -291,22 +283,20 @@ describe("Capstone Game Integration Tests", () => {
 			// Total pieces should be conserved
 			const finalP1Pieces = game.player1.pool.stacks.reduce(
 				(sum, stack) => sum + stack.pieces.length,
-				0,
+				0
 			);
 			const finalP2Pieces = game.player2.pool.stacks.reduce(
 				(sum, stack) => sum + stack.pieces.length,
-				0,
+				0
 			);
 			const boardPieces = game.board.stacks
 				.flat()
 				.reduce((sum, stack) => sum + stack.pieces.length, 0);
 
-			expect(finalP1Pieces + finalP2Pieces + boardPieces).toBe(
-				initialP1Pieces + initialP2Pieces,
-			);
+			expect(finalP1Pieces + finalP2Pieces + boardPieces).toBe(initialP1Pieces + initialP2Pieces);
 		});
 
-		it("ensures turn order is always correct", () => {
+		it('ensures turn order is always correct', () => {
 			const game = new Game();
 
 			expect(game.currentTurn).toBe(game.player1);

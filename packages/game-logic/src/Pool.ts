@@ -1,6 +1,6 @@
-import { Piece } from "./Piece";
-import type { Player } from "./Player";
-import { Stack, StackLocation } from "./Stack";
+import { Piece } from './Piece';
+import type { Player } from './Player';
+import { Stack, StackLocation } from './Stack';
 
 export class Pool {
 	player: Player;

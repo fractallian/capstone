@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { type Board, BoardLine, BoardLineType } from "./Board";
-import { Game } from "./Game";
-import { Piece, PieceSize } from "./Piece";
-import type { Stack } from "./Stack";
+import { beforeEach, describe, expect, it } from 'vitest';
+import { type Board, BoardLine, BoardLineType } from './Board';
+import { Game } from './Game';
+import { Piece, PieceSize } from './Piece';
+import type { Stack } from './Stack';
 
-describe("Board", () => {
+describe('Board', () => {
 	let game: Game;
 	let board: Board;
 
@@ -13,15 +13,15 @@ describe("Board", () => {
 		board = game.board;
 	});
 
-	describe("construction", () => {
-		it("creates 4x4 grid of stacks", () => {
+	describe('construction', () => {
+		it('creates 4x4 grid of stacks', () => {
 			expect(board.stacks.length).toBe(4);
 			for (const row of board.stacks) {
 				expect(row.length).toBe(4);
 			}
 		});
 
-		it("all board positions are empty initially", () => {
+		it('all board positions are empty initially', () => {
 			for (let row = 0; row < 4; row++) {
 				for (let col = 0; col < 4; col++) {
 					expect(board.stacks[row][col].isEmpty()).toBe(true);
@@ -29,7 +29,7 @@ describe("Board", () => {
 			}
 		});
 
-		it("registers all board stacks with game", () => {
+		it('registers all board stacks with game', () => {
 			// Should have 16 board stacks + 6 pool stacks (3 per player)
 			const boardStackCount = 16;
 			const poolStackCount = 6;
@@ -37,8 +37,8 @@ describe("Board", () => {
 		});
 	});
 
-	describe("lines generation", () => {
-		it("generates 4 horizontal lines", () => {
+	describe('lines generation', () => {
+		it('generates 4 horizontal lines', () => {
 			const horizontalLines = board.horizontalLines();
 			expect(horizontalLines.length).toBe(4);
 
@@ -52,7 +52,7 @@ describe("Board", () => {
 			}
 		});
 
-		it("generates 4 vertical lines", () => {
+		it('generates 4 vertical lines', () => {
 			const verticalLines = board.verticalLines();
 			expect(verticalLines.length).toBe(4);
 
@@ -66,7 +66,7 @@ describe("Board", () => {
 			}
 		});
 
-		it("generates 2 diagonal lines", () => {
+		it('generates 2 diagonal lines', () => {
 			const diagonalLines = board.diagonalLines();
 			expect(diagonalLines.length).toBe(2);
 
@@ -85,18 +85,18 @@ describe("Board", () => {
 			}
 		});
 
-		it("generates all 10 possible winning lines", () => {
+		it('generates all 10 possible winning lines', () => {
 			const allLines = board.lines();
 			expect(allLines.length).toBe(10); // 4 horizontal + 4 vertical + 2 diagonal
 		});
 
-		it("all lines contain exactly 4 stacks", () => {
+		it('all lines contain exactly 4 stacks', () => {
 			for (const line of board.lines()) {
 				expect(line.stacks.length).toBe(4);
 			}
 		});
 
-		it("assigns correct line types", () => {
+		it('assigns correct line types', () => {
 			const horizontalLines = board.horizontalLines();
 			const verticalLines = board.verticalLines();
 			const diagonalLines = board.diagonalLines();
@@ -120,89 +120,65 @@ describe("Board", () => {
 		});
 	});
 
-	describe("winner detection", () => {
-		it("returns undefined when no winner exists", () => {
+	describe('winner detection', () => {
+		it('returns undefined when no winner exists', () => {
 			expect(board.winner()).toBeUndefined();
 		});
 
-		it("returns undefined when board is empty", () => {
+		it('returns undefined when board is empty', () => {
 			expect(board.winner()).toBeUndefined();
 		});
 
-		it("detects horizontal winner", () => {
+		it('detects horizontal winner', () => {
 			// Place player1 pieces in top row
 			for (let col = 0; col < 4; col++) {
-				const piece = new Piece(
-					game.player1,
-					PieceSize.One,
-					board.stacks[0][col],
-				);
+				const piece = new Piece(game.player1, PieceSize.One, board.stacks[0][col]);
 				board.stacks[0][col].addPiece(piece);
 			}
 
 			expect(board.winner()).toBe(game.player1);
 		});
 
-		it("detects vertical winner", () => {
+		it('detects vertical winner', () => {
 			// Place player2 pieces in left column
 			for (let row = 0; row < 4; row++) {
-				const piece = new Piece(
-					game.player2,
-					PieceSize.Two,
-					board.stacks[row][0],
-				);
+				const piece = new Piece(game.player2, PieceSize.Two, board.stacks[row][0]);
 				board.stacks[row][0].addPiece(piece);
 			}
 
 			expect(board.winner()).toBe(game.player2);
 		});
 
-		it("detects main diagonal winner", () => {
+		it('detects main diagonal winner', () => {
 			// Place player1 pieces on main diagonal
 			for (let i = 0; i < 4; i++) {
-				const piece = new Piece(
-					game.player1,
-					PieceSize.Three,
-					board.stacks[i][i],
-				);
+				const piece = new Piece(game.player1, PieceSize.Three, board.stacks[i][i]);
 				board.stacks[i][i].addPiece(piece);
 			}
 
 			expect(board.winner()).toBe(game.player1);
 		});
 
-		it("detects anti-diagonal winner", () => {
+		it('detects anti-diagonal winner', () => {
 			// Place player2 pieces on anti-diagonal
 			for (let i = 0; i < 4; i++) {
-				const piece = new Piece(
-					game.player2,
-					PieceSize.Four,
-					board.stacks[3 - i][i],
-				);
+				const piece = new Piece(game.player2, PieceSize.Four, board.stacks[3 - i][i]);
 				board.stacks[3 - i][i].addPiece(piece);
 			}
 
 			expect(board.winner()).toBe(game.player2);
 		});
 
-		it("returns first winner found when multiple players have winning lines", () => {
+		it('returns first winner found when multiple players have winning lines', () => {
 			// Player1 gets top row
 			for (let col = 0; col < 4; col++) {
-				const piece = new Piece(
-					game.player1,
-					PieceSize.One,
-					board.stacks[0][col],
-				);
+				const piece = new Piece(game.player1, PieceSize.One, board.stacks[0][col]);
 				board.stacks[0][col].addPiece(piece);
 			}
 
 			// Player2 gets bottom row
 			for (let col = 0; col < 4; col++) {
-				const piece = new Piece(
-					game.player2,
-					PieceSize.One,
-					board.stacks[3][col],
-				);
+				const piece = new Piece(game.player2, PieceSize.One, board.stacks[3][col]);
 				board.stacks[3][col].addPiece(piece);
 			}
 
@@ -210,14 +186,10 @@ describe("Board", () => {
 			expect(board.winner()).toBe(game.player1);
 		});
 
-		it("detects winner even with mixed pieces on some lines", () => {
+		it('detects winner even with mixed pieces on some lines', () => {
 			// Player1 gets top row (all 4 positions)
 			for (let col = 0; col < 4; col++) {
-				const piece = new Piece(
-					game.player1,
-					PieceSize.One,
-					board.stacks[0][col],
-				);
+				const piece = new Piece(game.player1, PieceSize.One, board.stacks[0][col]);
 				board.stacks[0][col].addPiece(piece);
 			}
 
@@ -229,24 +201,16 @@ describe("Board", () => {
 			expect(board.winner()).toBe(game.player1);
 		});
 
-		it("only considers top pieces for winner detection", () => {
+		it('only considers top pieces for winner detection', () => {
 			// Place player2 pieces in bottom layer of top row
 			for (let col = 0; col < 4; col++) {
-				const bottomPiece = new Piece(
-					game.player2,
-					PieceSize.One,
-					board.stacks[0][col],
-				);
+				const bottomPiece = new Piece(game.player2, PieceSize.One, board.stacks[0][col]);
 				board.stacks[0][col].addPiece(bottomPiece);
 			}
 
 			// Cover 3 of them with player1 pieces
 			for (let col = 0; col < 3; col++) {
-				const topPiece = new Piece(
-					game.player1,
-					PieceSize.Two,
-					board.stacks[0][col],
-				);
+				const topPiece = new Piece(game.player1, PieceSize.Two, board.stacks[0][col]);
 				board.stacks[0][col].addPiece(topPiece);
 			}
 
@@ -256,7 +220,7 @@ describe("Board", () => {
 	});
 });
 
-describe("BoardLine", () => {
+describe('BoardLine', () => {
 	let game: Game;
 	let stacks: Stack[];
 
@@ -267,17 +231,17 @@ describe("BoardLine", () => {
 			game.board.stacks[0][0],
 			game.board.stacks[0][1],
 			game.board.stacks[0][2],
-			game.board.stacks[0][3],
+			game.board.stacks[0][3]
 		];
 	});
 
-	describe("winner detection", () => {
-		it("returns undefined for empty line", () => {
+	describe('winner detection', () => {
+		it('returns undefined for empty line', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 			expect(line.winningPlayer()).toBeUndefined();
 		});
 
-		it("returns undefined for mixed player line", () => {
+		it('returns undefined for mixed player line', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Place different players' pieces
@@ -289,7 +253,7 @@ describe("BoardLine", () => {
 			expect(line.winningPlayer()).toBeUndefined();
 		});
 
-		it("returns undefined for incomplete line", () => {
+		it('returns undefined for incomplete line', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Place pieces in only 3 positions
@@ -301,7 +265,7 @@ describe("BoardLine", () => {
 			expect(line.winningPlayer()).toBeUndefined();
 		});
 
-		it("detects complete line winner", () => {
+		it('detects complete line winner', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Place player1 pieces in all positions
@@ -313,7 +277,7 @@ describe("BoardLine", () => {
 			expect(line.winningPlayer()).toBe(game.player1);
 		});
 
-		it("only considers top pieces", () => {
+		it('only considers top pieces', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Place player2 pieces at bottom
@@ -333,15 +297,15 @@ describe("BoardLine", () => {
 		});
 	});
 
-	describe("three-in-a-row coverage detection", () => {
-		it("detects coverage of middle piece in three-in-a-row", () => {
+	describe('three-in-a-row coverage detection', () => {
+		it('detects coverage of middle piece in three-in-a-row', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Set up three in a row for player2
 			const pieces = [
 				new Piece(game.player2, PieceSize.One, stacks[0]),
 				new Piece(game.player2, PieceSize.One, stacks[1]),
-				new Piece(game.player2, PieceSize.One, stacks[2]),
+				new Piece(game.player2, PieceSize.One, stacks[2])
 			];
 
 			pieces.forEach((piece, i) => {
@@ -355,7 +319,7 @@ describe("BoardLine", () => {
 			expect(line.coversOneOfThree(stacks[1])).toBe(true);
 		});
 
-		it("detects coverage of edge piece in three-in-a-row", () => {
+		it('detects coverage of edge piece in three-in-a-row', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Set up three in a row: positions 1, 2, 3
@@ -371,7 +335,7 @@ describe("BoardLine", () => {
 			expect(line.coversOneOfThree(stacks[3])).toBe(true);
 		});
 
-		it("does not detect coverage when no three-in-a-row exists", () => {
+		it('does not detect coverage when no three-in-a-row exists', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Set up only two in a row
@@ -386,7 +350,7 @@ describe("BoardLine", () => {
 			expect(line.coversOneOfThree(stacks[1])).toBe(false);
 		});
 
-		it("does not detect coverage of own pieces", () => {
+		it('does not detect coverage of own pieces', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			// Set up three in a row for player1
@@ -401,7 +365,7 @@ describe("BoardLine", () => {
 			expect(line.coversOneOfThree(stacks[1])).toBe(false);
 		});
 
-		it("does not detect coverage when stack is empty", () => {
+		it('does not detect coverage when stack is empty', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			game.currentTurn = game.player1;
@@ -410,7 +374,7 @@ describe("BoardLine", () => {
 			expect(line.coversOneOfThree(stacks[0])).toBe(false);
 		});
 
-		it("handles invalid stack not in line", () => {
+		it('handles invalid stack not in line', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 			const otherStack = game.board.stacks[1][0]; // Not in this line
 
@@ -418,8 +382,8 @@ describe("BoardLine", () => {
 		});
 	});
 
-	describe("line types", () => {
-		it("creates lines with correct types", () => {
+	describe('line types', () => {
+		it('creates lines with correct types', () => {
 			const outerLine = new BoardLine(stacks, BoardLineType.outer);
 			const innerLine = new BoardLine(stacks, BoardLineType.inner);
 			const diagonalLine = new BoardLine(stacks, BoardLineType.diagonal);
@@ -429,7 +393,7 @@ describe("BoardLine", () => {
 			expect(diagonalLine.type).toBe(BoardLineType.diagonal);
 		});
 
-		it("maintains reference to stacks", () => {
+		it('maintains reference to stacks', () => {
 			const line = new BoardLine(stacks, BoardLineType.outer);
 
 			expect(line.stacks).toBe(stacks);

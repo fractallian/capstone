@@ -11,32 +11,32 @@
  *    |  |  |O3|  |
  */
 
-import type { Game } from "./Game";
-import type { Stack } from "./Stack";
+import type { Game } from './Game';
+import type { Stack } from './Stack';
 
 export function viewGameState(game: Game): string {
 	const stackLayout = [
-		[16, "", 0, 1, 2, 3, "", 19],
-		[17, "", 4, 5, 6, 7, "", 20],
-		[18, "", 8, 9, 10, 11, "", 21],
-		["   ", 12, 13, 14, 15, "   "],
+		[16, '', 0, 1, 2, 3, '', 19],
+		[17, '', 4, 5, 6, 7, '', 20],
+		[18, '', 8, 9, 10, 11, '', 21],
+		['   ', 12, 13, 14, 15, '   ']
 	];
 	const rows = stackLayout.map((row) => {
 		return row
 			.map((item) => {
-				if (typeof item === "string") {
+				if (typeof item === 'string') {
 					return item;
 				}
 				return stackToText(game.stacks[item]);
 			})
-			.join("|");
+			.join('|');
 	});
-	return `\n${rows.join("\n")}\n`;
+	return `\n${rows.join('\n')}\n`;
 }
 
 function stackToText(stack: Stack): string {
 	const piece = stack.topPiece();
-	if (!piece) return "  ";
+	if (!piece) return '  ';
 	if (piece.player === stack.game.player1) return `X${piece.size}`;
 	return `O${piece.size}`;
 }

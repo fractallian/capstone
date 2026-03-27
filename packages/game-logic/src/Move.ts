@@ -1,14 +1,14 @@
-import type { Game } from "./Game";
-import type { Piece } from "./Piece";
-import type { Player } from "./Player";
-import { type Stack, StackLocation } from "./Stack";
+import type { Game } from './Game';
+import type { Piece } from './Piece';
+import type { Player } from './Player';
+import { type Stack, StackLocation } from './Stack';
 
 export class InvalidMoveError extends Error {
 	errors: string[];
 
-	constructor(errors: string[] = ["Move rejected by game rules."]) {
-		super(errors.join("; "));
-		this.name = "InvalidMoveError";
+	constructor(errors: string[] = ['Move rejected by game rules.']) {
+		super(errors.join('; '));
+		this.name = 'InvalidMoveError';
 		this.errors = errors;
 	}
 }
@@ -53,13 +53,13 @@ export class Move {
 		const errors: string[] = [];
 
 		if (this.fromStack === this.toStack) {
-			errors.push("cannot move to the same stack");
+			errors.push('cannot move to the same stack');
 			return { isValid: false, errors };
 		}
 
 		const piece = this.piece();
 		if (!piece) {
-			errors.push("no piece on from stack");
+			errors.push('no piece on from stack');
 			return { isValid: false, errors };
 		}
 
@@ -69,7 +69,7 @@ export class Move {
 		}
 
 		if (!this.toStack.canAddPiece(piece)) {
-			errors.push("destination cannot accept piece");
+			errors.push('destination cannot accept piece');
 			return { isValid: false, errors };
 		}
 
@@ -82,7 +82,7 @@ export class Move {
 		if (this.toStack.isEmpty()) return { isValid: true, errors };
 		if (this.coversOneOfThree()) return { isValid: true, errors };
 
-		errors.push("pool moves must go to an empty stack or cover a three-in-a-row");
+		errors.push('pool moves must go to an empty stack or cover a three-in-a-row');
 		return { isValid: false, errors };
 	}
 
@@ -94,7 +94,9 @@ export class Move {
 			}
 		}
 
-		this.toStack.addPiece(this.piece() as Piece);
+		const piece = this.piece() as Piece;
+		this.toStack.addPiece(piece);
 		this.fromStack.pieces.pop();
+		piece.stack = this.toStack;
 	}
 }

@@ -1,18 +1,18 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { Game } from "./Game";
-import { PieceSize } from "./Piece";
-import { Player, PlayerColor } from "./Player";
-import { StackLocation } from "./Stack";
+import { beforeEach, describe, expect, it } from 'vitest';
+import { Game } from './Game';
+import { PieceSize } from './Piece';
+import { Player, PlayerColor } from './Player';
+import { StackLocation } from './Stack';
 
-describe("Player", () => {
+describe('Player', () => {
 	let game: Game;
 
 	beforeEach(() => {
 		game = new Game();
 	});
 
-	describe("construction", () => {
-		it("creates player with correct properties", () => {
+	describe('construction', () => {
+		it('creates player with correct properties', () => {
 			const player = new Player(game, PlayerColor.Black);
 
 			expect(player.game).toBe(game);
@@ -20,7 +20,7 @@ describe("Player", () => {
 			expect(player.pool).toBeDefined();
 		});
 
-		it("supports both player colors", () => {
+		it('supports both player colors', () => {
 			const blackPlayer = new Player(game, PlayerColor.Black);
 			const whitePlayer = new Player(game, PlayerColor.White);
 
@@ -30,7 +30,7 @@ describe("Player", () => {
 			expect(PlayerColor.White).toBe(0);
 		});
 
-		it("creates pool automatically", () => {
+		it('creates pool automatically', () => {
 			const player = new Player(game, PlayerColor.Black);
 
 			expect(player.pool).toBeDefined();
@@ -38,13 +38,13 @@ describe("Player", () => {
 		});
 	});
 
-	describe("player colors", () => {
-		it("has correct color enum values", () => {
+	describe('player colors', () => {
+		it('has correct color enum values', () => {
 			expect(PlayerColor.White).toBe(0);
 			expect(PlayerColor.Black).toBe(1);
 		});
 
-		it("players have different colors in game", () => {
+		it('players have different colors in game', () => {
 			expect(game.player1.color).toBe(PlayerColor.Black);
 			expect(game.player2.color).toBe(PlayerColor.White);
 			expect(game.player1.color).not.toBe(game.player2.color);
@@ -52,7 +52,7 @@ describe("Player", () => {
 	});
 });
 
-describe("Pool", () => {
+describe('Pool', () => {
 	let game: Game;
 	let player: Player;
 
@@ -61,25 +61,25 @@ describe("Pool", () => {
 		player = game.player1;
 	});
 
-	describe("construction", () => {
-		it("creates pool with correct structure", () => {
+	describe('construction', () => {
+		it('creates pool with correct structure', () => {
 			expect(player.pool.stacks.length).toBe(3);
 			expect(player.pool.player).toBe(player);
 		});
 
-		it("each stack has 4 pieces", () => {
+		it('each stack has 4 pieces', () => {
 			for (const stack of player.pool.stacks) {
 				expect(stack.pieces.length).toBe(4);
 			}
 		});
 
-		it("stacks are pool location", () => {
+		it('stacks are pool location', () => {
 			for (const stack of player.pool.stacks) {
 				expect(stack.location).toBe(StackLocation.pool);
 			}
 		});
 
-		it("pieces belong to the player", () => {
+		it('pieces belong to the player', () => {
 			for (const stack of player.pool.stacks) {
 				for (const piece of stack.pieces) {
 					expect(piece.player).toBe(player);
@@ -87,7 +87,7 @@ describe("Pool", () => {
 			}
 		});
 
-		it("pieces have correct sizes in each stack", () => {
+		it('pieces have correct sizes in each stack', () => {
 			player.pool.stacks.forEach((stack, _stackIndex) => {
 				expect(stack.pieces.length).toBe(4);
 
@@ -98,7 +98,7 @@ describe("Pool", () => {
 			});
 		});
 
-		it("creates pieces in correct stacking order (largest at bottom)", () => {
+		it('creates pieces in correct stacking order (largest at bottom)', () => {
 			for (const stack of player.pool.stacks) {
 				// Bottom piece (index 0) should be smallest (size 0)
 				expect(stack.pieces[0].size).toBe(PieceSize.One);
@@ -110,9 +110,8 @@ describe("Pool", () => {
 			}
 		});
 
-		it("registers all pool stacks with the game", () => {
-			const poolStackCount =
-				player.pool.stacks.length + game.player2.pool.stacks.length;
+		it('registers all pool stacks with the game', () => {
+			const poolStackCount = player.pool.stacks.length + game.player2.pool.stacks.length;
 			const boardStackCount = 16; // 4x4 board
 			const totalExpectedStacks = poolStackCount + boardStackCount;
 
@@ -120,27 +119,23 @@ describe("Pool", () => {
 		});
 	});
 
-	describe("piece distribution", () => {
-		it("player1 and player2 have identical pool structure", () => {
+	describe('piece distribution', () => {
+		it('player1 and player2 have identical pool structure', () => {
 			const pool1 = game.player1.pool;
 			const pool2 = game.player2.pool;
 
 			expect(pool1.stacks.length).toBe(pool2.stacks.length);
 
 			for (let i = 0; i < pool1.stacks.length; i++) {
-				expect(pool1.stacks[i].pieces.length).toBe(
-					pool2.stacks[i].pieces.length,
-				);
+				expect(pool1.stacks[i].pieces.length).toBe(pool2.stacks[i].pieces.length);
 
 				for (let j = 0; j < pool1.stacks[i].pieces.length; j++) {
-					expect(pool1.stacks[i].pieces[j].size).toBe(
-						pool2.stacks[i].pieces[j].size,
-					);
+					expect(pool1.stacks[i].pieces[j].size).toBe(pool2.stacks[i].pieces[j].size);
 				}
 			}
 		});
 
-		it("each player has 3 stacks with 4 pieces each (12 total)", () => {
+		it('each player has 3 stacks with 4 pieces each (12 total)', () => {
 			for (const player of [game.player1, game.player2]) {
 				expect(player.pool.stacks.length).toBe(3);
 
@@ -153,7 +148,7 @@ describe("Pool", () => {
 			}
 		});
 
-		it("each player has 3 pieces of each size", () => {
+		it('each player has 3 pieces of each size', () => {
 			for (const player of [game.player1, game.player2]) {
 				const sizeCount = [0, 0, 0, 0]; // Count for sizes 0, 1, 2, 3
 

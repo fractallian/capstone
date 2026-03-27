@@ -1,31 +1,30 @@
 {
-  "name": "@capstone/game-logic",
-  "version": "1.0.0",
-  "description": "Game API for both server and client",
-  "type": "module",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "check": "tsc --noEmit",
-    "build:js": "esbuild src/index.ts --outdir=lib --format=esm --target=es2020 --sourcemap",
-    "build:types": "tsc --emitDeclarationOnly",
-    "build:watch": "npm run build:watch:js & npm run build:watch:types",
-    "build:watch:js": "esbuild src/index.ts --outdir=lib --watch=forever --format=esm --target=es2020 --sourcemap",
-    "build:watch:types": "tsc --emitDeclarationOnly --watch",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:ui": "vitest --ui",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --write src/",
-    "format": "biome format --write src/"
-  },
-  "author": "Jeremy Dunn",
-  "license": "ISC",
-  "devDependencies": {
-    "@vitest/ui": "^3.2.4",
-    "esbuild": "^0.25.9",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
-  }
+	"name": "@capstone/game-logic",
+	"version": "1.0.0",
+	"description": "Game API for both server and client",
+	"type": "module",
+	"main": "lib/index.js",
+	"types": "lib/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"check": "tsc --noEmit",
+		"build:js": "esbuild src/index.ts --outdir=lib --format=esm --target=es2020 --sourcemap",
+		"build:types": "tsc --emitDeclarationOnly",
+		"build:watch": "npm run build:watch:js & npm run build:watch:types",
+		"build:watch:js": "esbuild src/index.ts --outdir=lib --watch=forever --format=esm --target=es2020 --sourcemap",
+		"build:watch:types": "tsc --emitDeclarationOnly --watch",
+		"test": "vitest",
+		"test:run": "vitest run",
+		"test:ui": "vitest --ui",
+		"lint": "prettier --check src/",
+		"lint:fix": "prettier --write src/"
+	},
+	"author": "Jeremy Dunn",
+	"license": "ISC",
+	"devDependencies": {
+		"@vitest/ui": "^3.2.4",
+		"esbuild": "^0.25.9",
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.4"
+	}
 }

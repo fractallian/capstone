@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { Game } from "./Game";
-import { Piece, PieceSize } from "./Piece";
-import { Stack, StackLocation } from "./Stack";
+import { beforeEach, describe, expect, it } from 'vitest';
+import { Game } from './Game';
+import { Piece, PieceSize } from './Piece';
+import { Stack, StackLocation } from './Stack';
 
-describe("Stack", () => {
+describe('Stack', () => {
 	let game: Game;
 	let boardStack: Stack;
 	let poolStack: Stack;
@@ -14,19 +14,19 @@ describe("Stack", () => {
 		poolStack = new Stack(game, StackLocation.pool);
 	});
 
-	describe("construction", () => {
-		it("creates an empty stack", () => {
+	describe('construction', () => {
+		it('creates an empty stack', () => {
 			expect(boardStack.isEmpty()).toBe(true);
 			expect(boardStack.pieces.length).toBe(0);
 			expect(boardStack.topPiece()).toBeUndefined();
 		});
 
-		it("assigns correct location", () => {
+		it('assigns correct location', () => {
 			expect(boardStack.location).toBe(StackLocation.board);
 			expect(poolStack.location).toBe(StackLocation.pool);
 		});
 
-		it("registers itself with the game", () => {
+		it('registers itself with the game', () => {
 			const initialStackCount = game.stacks.length;
 			const newStack = new Stack(game, StackLocation.board);
 
@@ -34,7 +34,7 @@ describe("Stack", () => {
 			expect(game.stacks[game.stacks.length - 1]).toBe(newStack);
 		});
 
-		it("assigns sequential indexes", () => {
+		it('assigns sequential indexes', () => {
 			const stack1 = new Stack(game, StackLocation.board);
 			const stack2 = new Stack(game, StackLocation.board);
 
@@ -42,8 +42,8 @@ describe("Stack", () => {
 		});
 	});
 
-	describe("piece management", () => {
-		it("can add a piece to empty stack", () => {
+	describe('piece management', () => {
+		it('can add a piece to empty stack', () => {
 			const piece = new Piece(game.player1, PieceSize.One, boardStack);
 
 			expect(boardStack.canAddPiece(piece)).toBe(true);
@@ -53,7 +53,7 @@ describe("Stack", () => {
 			expect(boardStack.pieces.length).toBe(1);
 		});
 
-		it("can add larger piece on top of smaller", () => {
+		it('can add larger piece on top of smaller', () => {
 			const smallPiece = new Piece(game.player1, PieceSize.One, boardStack);
 			const largePiece = new Piece(game.player2, PieceSize.Two, boardStack);
 
@@ -65,7 +65,7 @@ describe("Stack", () => {
 			expect(boardStack.pieces.length).toBe(2);
 		});
 
-		it("cannot add smaller piece on top of larger", () => {
+		it('cannot add smaller piece on top of larger', () => {
 			const largePiece = new Piece(game.player1, PieceSize.Three, boardStack);
 			const smallPiece = new Piece(game.player2, PieceSize.One, boardStack);
 
@@ -77,7 +77,7 @@ describe("Stack", () => {
 			expect(boardStack.pieces.length).toBe(1);
 		});
 
-		it("cannot add same size piece on top", () => {
+		it('cannot add same size piece on top', () => {
 			const piece1 = new Piece(game.player1, PieceSize.Two, boardStack);
 			const piece2 = new Piece(game.player2, PieceSize.Two, boardStack);
 
@@ -89,7 +89,7 @@ describe("Stack", () => {
 			expect(boardStack.pieces.length).toBe(1);
 		});
 
-		it("maintains correct stacking order", () => {
+		it('maintains correct stacking order', () => {
 			const piece1 = new Piece(game.player1, PieceSize.One, boardStack);
 			const piece2 = new Piece(game.player2, PieceSize.Two, boardStack);
 			const piece3 = new Piece(game.player1, PieceSize.Three, boardStack);
@@ -105,13 +105,13 @@ describe("Stack", () => {
 		});
 	});
 
-	describe("edge cases", () => {
-		it("handles multiple pieces of incrementing sizes", () => {
+	describe('edge cases', () => {
+		it('handles multiple pieces of incrementing sizes', () => {
 			const pieces = [
 				new Piece(game.player1, PieceSize.One, boardStack),
 				new Piece(game.player2, PieceSize.Two, boardStack),
 				new Piece(game.player1, PieceSize.Three, boardStack),
-				new Piece(game.player2, PieceSize.Four, boardStack),
+				new Piece(game.player2, PieceSize.Four, boardStack)
 			];
 
 			for (const piece of pieces) {
@@ -122,7 +122,7 @@ describe("Stack", () => {
 			expect(boardStack.topPiece()).toBe(pieces[3]);
 		});
 
-		it("rejects invalid size sequences", () => {
+		it('rejects invalid size sequences', () => {
 			const largePiece = new Piece(game.player1, PieceSize.Four, boardStack);
 			const mediumPiece = new Piece(game.player2, PieceSize.Two, boardStack);
 
@@ -132,8 +132,8 @@ describe("Stack", () => {
 		});
 	});
 
-	describe("stack location behavior", () => {
-		it("board and pool stacks behave identically for piece rules", () => {
+	describe('stack location behavior', () => {
+		it('board and pool stacks behave identically for piece rules', () => {
 			const boardPiece = new Piece(game.player1, PieceSize.One, boardStack);
 			const poolPiece = new Piece(game.player1, PieceSize.One, poolStack);
 

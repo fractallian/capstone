@@ -1,9 +1,9 @@
-import type { Game } from "./Game";
-import type { Piece } from "./Piece";
+import type { Game } from './Game';
+import type { Piece } from './Piece';
 
 export enum StackLocation {
-	board = "B",
-	pool = "P",
+	board = 'B',
+	pool = 'P'
 }
 
 export class Stack {

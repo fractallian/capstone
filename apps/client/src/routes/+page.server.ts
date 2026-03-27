@@ -51,32 +51,48 @@ export const load = async ({ locals, url }) => {
 
 	const waitingGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id);
 	const inProgressGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt && !!gameRecord.player2Id);
-	const inProgressSnapshots = await Promise.all(
-		inProgressGameRows.map(async (gameRecord) => {
-			const latestBoardState = await db.query.boardState.findFirst({
-				where: eq(boardState.gameId, gameRecord.id),
-				orderBy: [desc(boardState.createdAt)]
-			});
+	const inProgressGameIds = inProgressGameRows.map((gameRecord) => gameRecord.id);
+	const inProgressBoardRows =
+		inProgressGameIds.length > 0
+			? await db
+					.select({
+						gameId: boardState.gameId,
+						board: boardState.board
+					})
+					.from(boardState)
+					.where(inArray(boardState.gameId, inProgressGameIds))
+					.orderBy(boardState.gameId, desc(boardState.createdAt))
+			: [];
 
-			const snapshot = latestBoardState?.board as { currentTurnIndex?: 0 | 1 } | null | undefined;
-			const currentTurnIndex =
-				snapshot && !Array.isArray(snapshot) && snapshot.currentTurnIndex === 1 ? 1 : 0;
-			const viewerPlayerIndex = gameRecord.player1Id === locals.user?.id ? 1 : 2;
-			const opponentId =
-				gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
+	const latestBoardByGameId = new Map<string, unknown>();
+	for (const row of inProgressBoardRows) {
+		if (!latestBoardByGameId.has(row.gameId)) {
+			latestBoardByGameId.set(row.gameId, row.board);
+		}
+	}
 
-			return {
-				id: gameRecord.id,
-				opponent: opponentId ? opponentById.get(opponentId) ?? null : null,
-				status: 'in_progress' as const,
-				startedAt: gameRecord.startedAt.toISOString(),
-				endedAt: null,
-				isYourTurn:
-					(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
-					(viewerPlayerIndex === 2 && currentTurnIndex === 1)
-			};
-		})
-	);
+	const inProgressSnapshots = inProgressGameRows.map((gameRecord) => {
+		const snapshot = latestBoardByGameId.get(gameRecord.id) as
+			| { currentTurnIndex?: 0 | 1 }
+			| null
+			| undefined;
+		const currentTurnIndex =
+			snapshot && !Array.isArray(snapshot) && snapshot.currentTurnIndex === 1 ? 1 : 0;
+		const viewerPlayerIndex = gameRecord.player1Id === locals.user?.id ? 1 : 2;
+		const opponentId =
+			gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
+
+		return {
+			id: gameRecord.id,
+			opponent: opponentId ? opponentById.get(opponentId) ?? null : null,
+			status: 'in_progress' as const,
+			startedAt: gameRecord.startedAt.toISOString(),
+			endedAt: null,
+			isYourTurn:
+				(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+				(viewerPlayerIndex === 2 && currentTurnIndex === 1)
+		};
+	});
 
 	const inProgressGames = inProgressSnapshots.sort((a, b) => {
 		if (a.isYourTurn === b.isYourTurn) return 0;
@@ -105,16 +121,9 @@ export const load = async ({ locals, url }) => {
 		startedAt: gameRecord.startedAt.toISOString()
 	}));
 
-	const currentGameId =
-		locals.currentGameId &&
-		inProgressGames.some((gameRecord) => gameRecord.id === locals.currentGameId)
-			? locals.currentGameId
-			: null;
-
 	return {
 		githubLoginEnabled: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
 		colyseusUrl: getColyseusPublicUrl(url),
-		currentGameId,
 		hasSession: Boolean(locals.session),
 		user: locals.user
 			? {

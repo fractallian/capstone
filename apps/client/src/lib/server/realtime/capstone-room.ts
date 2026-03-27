@@ -344,6 +344,10 @@ export class CapstoneRoom extends Room {
 
 			if (!this.playerIndexBySessionId.has(client.sessionId)) {
 				const occupiedSeats = new Set(this.playerIndexBySessionId.values());
+				if (this.gamePersisted) {
+					if (this.playerUserIdByIndex.get(0)) occupiedSeats.add(0);
+					if (this.playerUserIdByIndex.get(1)) occupiedSeats.add(1);
+				}
 				this.playerIndexBySessionId.set(
 					client.sessionId,
 					occupiedSeats.has(0) ? 1 : 0

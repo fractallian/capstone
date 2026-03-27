@@ -1,6 +1,6 @@
-import type { Game } from "./Game";
-import type { Player } from "./Player";
-import { Stack, StackLocation } from "./Stack";
+import type { Game } from './Game';
+import type { Player } from './Player';
+import { Stack, StackLocation } from './Stack';
 
 const INDEXES = [0, 1, 2, 3];
 
@@ -22,8 +22,7 @@ export class Board {
 
 	horizontalLines(): BoardLine[] {
 		return INDEXES.map((row) => {
-			const type =
-				row > 0 && row < 3 ? BoardLineType.inner : BoardLineType.outer;
+			const type = row > 0 && row < 3 ? BoardLineType.inner : BoardLineType.outer;
 			return new BoardLine(this.stacks[row], type);
 		});
 	}
@@ -33,8 +32,7 @@ export class Board {
 			const stacks = INDEXES.map((row) => {
 				return this.stacks[row][col];
 			});
-			const type =
-				col > 0 && col < 3 ? BoardLineType.inner : BoardLineType.outer;
+			const type = col > 0 && col < 3 ? BoardLineType.inner : BoardLineType.outer;
 			return new BoardLine(stacks, type);
 		});
 	}
@@ -45,21 +43,19 @@ export class Board {
 				INDEXES.map((i) => {
 					return this.stacks[i][i];
 				}),
-				BoardLineType.diagonal,
+				BoardLineType.diagonal
 			),
 			new BoardLine(
 				INDEXES.map((i) => {
 					return this.stacks[3 - i][i];
 				}),
-				BoardLineType.diagonal,
-			),
+				BoardLineType.diagonal
+			)
 		];
 	}
 
 	lines(): BoardLine[] {
-		return this.horizontalLines()
-			.concat(this.verticalLines())
-			.concat(this.diagonalLines());
+		return this.horizontalLines().concat(this.verticalLines()).concat(this.diagonalLines());
 	}
 
 	winner(): Player | undefined {
@@ -75,9 +71,9 @@ export class Board {
 }
 
 export enum BoardLineType {
-	diagonal = "D",
-	inner = "I",
-	outer = "O",
+	diagonal = 'D',
+	inner = 'I',
+	outer = 'O'
 }
 
 export class BoardLine {
@@ -91,9 +87,7 @@ export class BoardLine {
 
 	winningPlayer(): Player | undefined {
 		const topPlayers = this.stacks.map((stack) => stack.topPiece()?.player);
-		return topPlayers.every((player) => player === topPlayers[0])
-			? topPlayers[0]
-			: undefined;
+		return topPlayers.every((player) => player === topPlayers[0]) ? topPlayers[0] : undefined;
 	}
 
 	coversOneOfThree(toStack: Stack): boolean {

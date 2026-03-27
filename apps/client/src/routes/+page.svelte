@@ -1,21 +1,30 @@
 <script lang="ts">
 	import {
-		gameServerEventSchema,
 		type GameServerEvent,
 		type GameSnapshot,
 		type MakeMoveCommand
 	} from '@capstone/contracts';
 	import { dev } from '$app/environment';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { getAuthClient } from '$lib/auth-client';
 	import { Game } from '@capstone/game-logic';
 	import { Client, type Room } from 'colyseus.js';
+	import { onMount } from 'svelte';
+	import CompletedGamesSection from '$lib/components/lobby/CompletedGamesSection.svelte';
+	import InProgressGamesSection from '$lib/components/lobby/InProgressGamesSection.svelte';
+	import WaitingGamesSection from '$lib/components/lobby/WaitingGamesSection.svelte';
+	import {
+		appendRecentEvent,
+		parseGameEvent,
+		setDebugHelpers,
+		setDebugRoom,
+		type CapstoneDebug
+	} from '$lib/realtime/client-events';
 	let {
 		data
 	}: {
 		data: {
 			colyseusUrl: string;
-			currentGameId: string | null;
 			inProgressGames: {
 				id: string;
 				opponent: { id: string; name: string | null; image: string | null } | null;
@@ -50,24 +59,6 @@
 	let matchmakingMessage = $state<string | null>(null);
 	let room: Room | null = null;
 
-	type CapstoneDebug = {
-		room: Room | null;
-		getRoomId: () => string | null;
-		getSyncSeq: () => number;
-		game: Game | null;
-		getGame: () => Game | null;
-		lastEvent: GameServerEvent | null;
-		lastSnapshot: GameSnapshot | null;
-		events: GameServerEvent[];
-		getSnapshot: () => GameSnapshot | null;
-		getMoves: () => GameSnapshot['moves'];
-		sendMove: (from: number, to: number) => void;
-		awaitNextSync: (timeoutMs?: number) => Promise<GameSnapshot>;
-		sendMoveAndWait: (from: number, to: number, timeoutMs?: number) => Promise<GameSnapshot>;
-		joinByRoomId: (roomId: string) => Promise<void>;
-		clearEvents: () => void;
-	};
-
 	let debugLastEvent: GameServerEvent | null = null;
 	let debugLastSnapshot: GameSnapshot | null = null;
 	let debugEvents: GameServerEvent[] = [];
@@ -92,11 +83,7 @@
 
 	function attachDebugHelpers(currentRoom: Room | null) {
 		if (!dev || typeof window === 'undefined') return;
-		const debugWindow = window as Window & {
-			__capstoneDebug?: CapstoneDebug;
-			__capstoneRoom?: Room | null;
-		};
-		debugWindow.__capstoneDebug = {
+		setDebugHelpers({
 			room: currentRoom,
 			getRoomId: () => currentRoom?.roomId ?? null,
 			getSyncSeq: () => debugSyncSeq,
@@ -143,20 +130,21 @@
 					}, timeoutMs);
 
 					const unsub = currentRoom.onMessage('event', (payload: unknown) => {
-						const parsed = gameServerEventSchema.safeParse(payload);
-						if (!parsed.success) return;
-						if (parsed.data.type !== 'state_sync') return;
+						const event = parseGameEvent(payload);
+						if (!event || event.type !== 'state_sync') return;
 						if (debugSyncSeq <= startSeq) return;
 						clearTimeout(timeoutId);
 						unsub();
-						resolve(parsed.data.snapshot);
+						resolve(event.snapshot);
 					});
 				});
 			},
 			sendMoveAndWait: async (from: number, to: number, timeoutMs = 5000) => {
 				const startSeq = debugSyncSeq;
-				debugWindow.__capstoneDebug?.sendMove(from, to);
-				const snapshot = await debugWindow.__capstoneDebug?.awaitNextSync(timeoutMs);
+				(window as Window & { __capstoneDebug?: CapstoneDebug }).__capstoneDebug?.sendMove(from, to);
+				const snapshot = await (
+					window as Window & { __capstoneDebug?: CapstoneDebug }
+				).__capstoneDebug?.awaitNextSync(timeoutMs);
 				if (!snapshot) throw new Error('No snapshot received.');
 				// Ensure this was actually a new sync (not initial state).
 				if (debugSyncSeq <= startSeq) throw new Error('No new state_sync received.');
@@ -173,7 +161,7 @@
 				debugEvents = [];
 				attachDebugHelpers(currentRoom);
 			}
-		};
+		});
 	}
 
 	function trackDebugEvent(event: GameServerEvent) {
@@ -187,16 +175,12 @@
 				debugGameSeq = debugSyncSeq;
 			}
 		}
-		debugEvents = [...debugEvents.slice(-49), event];
+		debugEvents = appendRecentEvent(debugEvents, event);
 	}
 
 	function exposeRoomForDev(currentRoom: Room | null) {
 		if (!dev || typeof window === 'undefined') return;
-		const debugWindow = window as Window & {
-			__capstoneDebug?: CapstoneDebug;
-			__capstoneRoom?: Room | null;
-		};
-		debugWindow.__capstoneRoom = currentRoom;
+		setDebugRoom(currentRoom);
 		attachDebugHelpers(currentRoom);
 	}
 
@@ -224,7 +208,10 @@
 		}
 	}
 
-	function wireRoom(currentRoom: Room, options: { navigateOnWaiting: boolean } = { navigateOnWaiting: true }) {
+	function wireRoom(
+		currentRoom: Room,
+		options: { navigateOnWaiting: boolean } = { navigateOnWaiting: true }
+	) {
 		exposeRoomForDev(currentRoom);
 		currentRoom.onLeave(() => {
 			if (room === currentRoom) {
@@ -234,34 +221,36 @@
 		});
 
 		currentRoom.onMessage('event', (payload: unknown) => {
-			const parsed = gameServerEventSchema.safeParse(payload);
-			if (!parsed.success) {
+			const event = parseGameEvent(payload);
+			if (!event) {
 				matchmakingState = 'failed';
 				matchmakingMessage = 'Received unexpected realtime event.';
 				return;
 			}
-			trackDebugEvent(parsed.data);
+			trackDebugEvent(event);
 			attachDebugHelpers(currentRoom);
 
-			if (parsed.data.type === 'waiting_for_player') {
+			if (event.type === 'waiting_for_player') {
 				matchmakingState = 'waiting';
-				matchmakingMessage = 'Waiting for another player...';
+				matchmakingMessage = null;
+				void invalidateAll();
 				if (options.navigateOnWaiting) {
-					void goto(`/game/${parsed.data.gameId}`);
+					void goto(`/game/${event.gameId}`);
 				}
 				return;
 			}
 
-			if (parsed.data.type === 'game_started') {
+			if (event.type === 'game_started') {
 				matchmakingState = 'matched';
 				matchmakingMessage = null;
-				void goto(`/game/${parsed.data.gameId}`);
+				void invalidateAll();
+				void goto(`/game/${event.gameId}`);
 				return;
 			}
 
-			if (parsed.data.type === 'invalid_move') {
+			if (event.type === 'invalid_move') {
 				matchmakingState = 'failed';
-				matchmakingMessage = parsed.data.message;
+				matchmakingMessage = event.message;
 			}
 		});
 	}
@@ -274,23 +263,26 @@
 
 		try {
 			const client = new Client(data.colyseusUrl);
-			let createdNewRoom = false;
-			try {
-				// Prefer joining a room that is still waiting for player 2.
-				room = await client.join('capstone', {
+			const response = await fetch('/api/matchmaking/new-game', { method: 'POST' });
+			if (!response.ok) {
+				throw new Error('Unable to fetch matchmaking candidates.');
+			}
+			const body = (await response.json()) as { gameId: string | null };
+			const gameIdToJoin = body.gameId;
+			if (gameIdToJoin) {
+				room = await client.joinOrCreate('capstone', {
 					userId: data.user.id,
+					gameId: gameIdToJoin,
 					needsOpponent: true
 				});
-			} catch {
-				// No waiting game found: create a fresh one.
-				createdNewRoom = true;
+			} else {
 				room = await client.create('capstone', {
 					userId: data.user.id,
 					gameId: crypto.randomUUID(),
 					needsOpponent: true
 				});
 			}
-			wireRoom(room, { navigateOnWaiting: !createdNewRoom });
+			wireRoom(room, { navigateOnWaiting: true });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			if (attempt < 1) {
@@ -304,6 +296,17 @@
 			isStartingGame = false;
 		}
 	}
+
+	onMount(() => {
+		if (!data.hasSession) return;
+
+		const refreshLobby = () => void invalidateAll();
+		const intervalId = window.setInterval(refreshLobby, 3000);
+
+		return () => {
+			window.clearInterval(intervalId);
+		};
+	});
 </script>
 
 <main class="min-h-screen bg-slate-50 px-4 py-8">
@@ -322,154 +325,37 @@
 						<strong>{data.user?.name ?? data.user?.email ?? 'your account'}</strong>.
 					</p>
 					<div class="flex flex-wrap items-center gap-2">
-						<button
-							type="button"
-							class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
-							disabled={isStartingGame || matchmakingState === 'waiting'}
-							onclick={() => void startNewGame()}
-						>
-							{isStartingGame ? 'Starting...' : 'New Game'}
-						</button>
+						{#if isStartingGame}
+							<div class="inline-flex items-center gap-2 text-sm text-slate-600" role="status">
+								<span
+									class="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"
+								></span>
+							</div>
+						{:else}
+							<button
+								type="button"
+								class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+								disabled={matchmakingState === 'waiting'}
+								onclick={() => void startNewGame()}
+							>
+								New Game
+							</button>
+						{/if}
 					</div>
 				</div>
 
-				{#if matchmakingState === 'waiting'}
-					<p class="text-sm text-slate-700">Waiting for another player...</p>
-				{/if}
-
-				{#if matchmakingMessage}
+				{#if matchmakingState === 'failed' && matchmakingMessage}
 					<p class="text-sm text-rose-700">{matchmakingMessage}</p>
 				{/if}
 
 				<div class="grid gap-6 lg:grid-cols-3">
-					<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-						<div class="flex items-center justify-between gap-3">
-							<h2 class="text-lg font-semibold text-slate-900">Waiting</h2>
-							<span class="text-sm text-slate-500">{data.waitingGames.length}</span>
-						</div>
-
-						{#if data.waitingGames.length > 0}
-							<div class="mt-4 flex flex-col gap-3">
-								{#each data.waitingGames as gameRecord (gameRecord.id)}
-									<div class="block rounded-lg border border-amber-200 bg-amber-50 p-4">
-										<div class="flex items-center justify-between gap-3">
-											<p class="text-sm font-medium text-slate-900">Waiting for opponent</p>
-											<span
-												class="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"
-												aria-label="Waiting for opponent"
-											></span>
-										</div>
-										<p class="mt-1 text-xs text-slate-600">
-											Started {formatDate(gameRecord.startedAt)}
-										</p>
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<p class="mt-4 text-sm text-slate-600">No waiting games right now.</p>
-						{/if}
-					</section>
-
-					<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-						<div class="flex items-center justify-between gap-3">
-							<h2 class="text-lg font-semibold text-slate-900">In Progress</h2>
-							<span class="text-sm text-slate-500">{data.inProgressGames.length}</span>
-						</div>
-
-						{#if data.inProgressGames.length > 0}
-							<div class="mt-4 flex flex-col gap-3">
-								{#each data.inProgressGames as gameRecord (gameRecord.id)}
-									<a
-										class={`block rounded-lg border p-4 transition hover:border-slate-300 ${
-											gameRecord.isYourTurn
-												? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/60'
-												: 'border-slate-200 bg-slate-50 hover:bg-white'
-										}`}
-										href={`/game/${gameRecord.id}`}
-									>
-										<div class="flex items-center gap-2">
-											{#if gameRecord.opponent?.image}
-												<img
-													src={gameRecord.opponent.image}
-													alt={getOpponentLabel(gameRecord.opponent)}
-													class="h-7 w-7 rounded-full object-cover"
-												/>
-											{:else}
-												<div
-													class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-700"
-												>
-													{getOpponentLabel(gameRecord.opponent).slice(0, 2).toUpperCase()}
-												</div>
-											{/if}
-											<p class="text-sm font-medium text-slate-900">
-												{getOpponentLabel(gameRecord.opponent)}
-											</p>
-										</div>
-										<p class="mt-1 text-xs text-slate-600">
-											Started {formatDate(gameRecord.startedAt)}
-										</p>
-									</a>
-								{/each}
-							</div>
-						{:else}
-							<p class="mt-4 text-sm text-slate-600">No in-progress games yet.</p>
-						{/if}
-					</section>
-
-					<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-						<div class="flex items-center justify-between gap-3">
-							<h2 class="text-lg font-semibold text-slate-900">Completed</h2>
-							<span class="text-sm text-slate-500">{data.completedGames.length}</span>
-						</div>
-
-						{#if data.completedGames.length > 0}
-							<div class="mt-4 flex flex-col gap-3">
-								{#each data.completedGames as gameRecord (gameRecord.id)}
-									<a
-										class="block rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
-										href={`/game/${gameRecord.id}`}
-									>
-										<div class="flex items-center justify-between gap-3">
-											<div
-												class={`flex h-10 w-10 items-center justify-center rounded-lg text-xl font-extrabold ${
-													gameRecord.result === 'win'
-														? 'bg-emerald-100 text-emerald-700'
-														: 'bg-rose-100 text-rose-700'
-												}`}
-												aria-label={gameRecord.result === 'win' ? 'Win' : 'Loss'}
-												title={gameRecord.result === 'win' ? 'Win' : 'Loss'}
-											>
-												{gameRecord.result === 'win' ? 'W' : 'L'}
-											</div>
-											<div class="flex min-w-0 items-center gap-2">
-												{#if gameRecord.opponent?.image}
-													<img
-														src={gameRecord.opponent.image}
-														alt={getOpponentLabel(gameRecord.opponent)}
-														class="h-7 w-7 rounded-full object-cover"
-													/>
-												{:else}
-													<div
-														class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-700"
-													>
-														{getOpponentLabel(gameRecord.opponent).slice(0, 2).toUpperCase()}
-													</div>
-												{/if}
-												<p class="truncate text-sm font-medium text-slate-900">
-													{getOpponentLabel(gameRecord.opponent)}
-												</p>
-											</div>
-										</div>
-										<p class="mt-1 text-xs text-slate-600">
-											Completed {formatDate(gameRecord.endedAt ?? gameRecord.startedAt)}
-										</p>
-									</a>
-								{/each}
-							</div>
-						{:else}
-							<p class="mt-4 text-sm text-slate-600">No completed games yet.</p>
-						{/if}
-					</section>
+					<WaitingGamesSection games={data.waitingGames} {formatDate} />
+					<InProgressGamesSection
+						games={data.inProgressGames}
+						{formatDate}
+						{getOpponentLabel}
+					/>
+					<CompletedGamesSection games={data.completedGames} {formatDate} {getOpponentLabel} />
 				</div>
 			</div>
 		{:else if data.githubLoginEnabled}
@@ -515,10 +401,5 @@
 				<code class="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs">.env.example</code>).
 			</p>
 		{/if}
-
-		<p class="text-xs text-slate-500">
-			Realtime server:
-			<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">{data.colyseusUrl}</code>
-		</p>
 	</div>
 </main>
