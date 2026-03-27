@@ -56,6 +56,7 @@
 		'connecting'
 	);
 	let liveSnapshot = $state<GameStateLike>(data.gameState);
+	let gameMessage = $state<string | null>(null);
 	let debugLastEvent: GameServerEvent | null = $state(null);
 	let debugEvents: GameServerEvent[] = $state([]);
 	let debugSyncSeq = $state(0);
@@ -73,6 +74,11 @@
 
 	let game = $derived(Game.deserialize(getMoves(liveSnapshot)));
 	let currentTurnIndex = $derived(getCurrentTurnIndex(liveSnapshot));
+	let canInteract = $derived(
+		roomStatus === 'opponent_connected' &&
+			((data.viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+				(data.viewerPlayerIndex === 2 && currentTurnIndex === 1))
+	);
 	let debugSnapshot = $derived<GameSnapshot>({
 		moves: getMoves(liveSnapshot),
 		currentTurnIndex
@@ -114,6 +120,19 @@
 		roomStatus = connectedPlayerIndexes.includes(opponentIndex)
 			? 'opponent_connected'
 			: 'waiting_for_opponent';
+	}
+
+	function handleBoardMove(fromStackIndex: number, toStackIndex: number) {
+		if (!room) {
+			throw new Error('No realtime room is attached on the persisted game page.');
+		}
+
+		const command: MakeMoveCommand = {
+			type: 'make_move',
+			from: fromStackIndex,
+			to: toStackIndex
+		};
+		room.send('command', command);
 	}
 
 	$effect(() => {
@@ -211,6 +230,7 @@
 
 				if (parsed.data.type === 'state_sync') {
 					liveSnapshot = parsed.data.snapshot;
+					gameMessage = null;
 					debugSyncSeq += 1;
 					return;
 				}
@@ -222,6 +242,11 @@
 
 				if (parsed.data.type === 'waiting_for_player') {
 					roomStatus = 'waiting_for_opponent';
+					return;
+				}
+
+				if (parsed.data.type === 'invalid_move') {
+					gameMessage = parsed.data.message;
 				}
 			});
 		}
@@ -261,11 +286,20 @@
 								: 'Disconnected'}
 				</strong>
 			</p>
+			{#if gameMessage}
+				<p class="mt-2 text-sm text-rose-700">{gameMessage}</p>
+			{/if}
 		</div>
 
 		<div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
 			<div class="mx-auto aspect-[6/4] w-full max-w-5xl">
-				<GameComponent {stacks} {currentTurnIndex} viewerPlayerIndex={data.viewerPlayerIndex} />
+				<GameComponent
+					{stacks}
+					{currentTurnIndex}
+					viewerPlayerIndex={data.viewerPlayerIndex}
+					{canInteract}
+					onMove={handleBoardMove}
+				/>
 			</div>
 		</div>
 	</section>
