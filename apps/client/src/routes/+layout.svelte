@@ -2,6 +2,7 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import capstoneLogo from '$lib/assets/capstone-logo.svg';
+	import Rules from '$lib/components/Rules.svelte';
 	import { dev } from '$app/environment';
 	import { getAuthClient } from '$lib/auth-client';
 
@@ -17,6 +18,7 @@
 	} = $props();
 
 	let isSigningOut = $state(false);
+	let rulesOpen = $state(false);
 
 	type CapstoneDebugStub = {
 		room: unknown;
@@ -47,10 +49,10 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 
-<div class="min-h-screen bg-slate-50">
+<div class="flex min-h-screen flex-col bg-slate-50">
 	<header class="border-b border-slate-200 bg-white">
 		<div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
-			<a href="/" class="inline-flex items-center" aria-label="Go to lobby">
+			<a href="/" class="inline-flex shrink-0 items-center" aria-label="Go to lobby">
 				<img src={capstoneLogo} alt="Capstone" class="h-16 w-auto" />
 			</a>
 			{#if data.hasSession && data.user}
@@ -86,5 +88,21 @@
 		</div>
 	</header>
 
-	{@render children()}
+	<main class="flex min-h-0 flex-1 flex-col">
+		{@render children()}
+	</main>
+
+	<footer class="border-t border-slate-200 bg-white">
+		<div class="mx-auto flex max-w-6xl justify-center px-4 py-4">
+			<button
+				type="button"
+				class="text-sm font-medium text-slate-600 underline-offset-2 hover:text-slate-900 hover:underline"
+				onclick={() => (rulesOpen = true)}
+			>
+				Rules
+			</button>
+		</div>
+	</footer>
+
+	<Rules bind:open={rulesOpen} />
 </div>

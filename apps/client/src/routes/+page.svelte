@@ -309,7 +309,7 @@
 	});
 </script>
 
-<main class="min-h-screen bg-slate-50 px-4 py-8">
+<div class="flex-1 min-h-0 bg-slate-50 px-4 py-8">
 	<div class="mx-auto flex w-full max-w-6xl flex-col gap-8">
 		<div class="max-w-lg">
 			<h1 class="text-3xl font-semibold tracking-tight text-slate-900">Lobby</h1>
@@ -402,4 +402,4 @@
 			</p>
 		{/if}
 	</div>
-</main>
+</div>

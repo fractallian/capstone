@@ -281,7 +281,7 @@
 	});
 </script>
 
-<main class="min-h-screen bg-slate-50 px-4 py-8">
+<div class="flex-1 min-h-0 bg-slate-50 px-4 py-8">
 	<section class="mx-auto flex w-full max-w-6xl flex-col gap-6">
 		<GamePlayerHeader
 			{player1}
@@ -312,4 +312,4 @@
 			</div>
 		</div>
 	</section>
-</main>
+</div>
