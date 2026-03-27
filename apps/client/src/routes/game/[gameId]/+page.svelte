@@ -95,6 +95,8 @@
 	let winnerPlayerId = $derived(getWinnerPlayerId(liveSnapshot));
 	let endedAt = $derived(getEndedAt(liveSnapshot));
 	let isGameEnded = $derived(Boolean(endedAt));
+	let isViewerWinner = $derived(Boolean(isGameEnded && winnerPlayerId === viewerUserId));
+	let showEndBanner = $derived(Boolean(isGameEnded && winnerPlayerId));
 	let canInteract = $derived(
 		!isGameEnded &&
 			((viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
@@ -107,6 +109,15 @@
 		endedAt
 	});
 	let movesSyncKey = $derived(JSON.stringify(getMoves(liveSnapshot)));
+	const confettiPieces = Array.from({ length: 30 }, (_, i) => ({
+		id: i,
+		left: `${((i * 37) % 100) + Math.random() * 2}%`,
+		delay: `${(i % 10) * 0.12}s`,
+		duration: `${2.2 + (i % 6) * 0.2}s`,
+		size: `${7 + (i % 4) * 2}px`,
+		rotation: `${(i * 41) % 360}deg`,
+		color: ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#a855f7', '#f97316'][i % 6]
+	}));
 
 	function sendMove(from: number, to: number) {
 		const poolIndex = Number(from);
@@ -235,12 +246,7 @@
 
 					if (event.type === 'state_sync') {
 						liveSnapshot = event.snapshot;
-						gameMessage =
-							event.snapshot.endedAt && event.snapshot.winnerPlayerId
-								? event.snapshot.winnerPlayerId === viewerUserId
-									? 'Game over: you won.'
-									: 'Game over: you lost.'
-								: null;
+						gameMessage = null;
 						debugSyncSeq += 1;
 						return;
 					}
@@ -301,7 +307,7 @@
 					: 'border-slate-200 bg-slate-300'
 			}`}
 		>
-			<div class="mx-auto aspect-6/4 w-full max-w-5xl">
+			<div class="relative mx-auto aspect-6/4 w-full max-w-5xl overflow-hidden rounded-md">
 				<GameComponent
 					moves={getMoves(liveSnapshot)}
 					movesSyncKey={movesSyncKey}
@@ -309,7 +315,49 @@
 					{canInteract}
 					onMove={handleBoardMove}
 				/>
+				{#if showEndBanner}
+					<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+						{#if isViewerWinner}
+							<div class="absolute inset-0">
+								{#each confettiPieces as piece (piece.id)}
+									<span
+										class="confetti-piece"
+										style={`left:${piece.left}; width:${piece.size}; height:${piece.size}; background:${piece.color}; animation-delay:${piece.delay}; animation-duration:${piece.duration}; transform:rotate(${piece.rotation});`}
+									></span>
+								{/each}
+							</div>
+						{/if}
+						<div
+							class={`rounded-xl px-8 py-5 text-center text-5xl font-black tracking-wide drop-shadow-lg ${
+								isViewerWinner ? 'text-emerald-600' : 'text-red-600'
+							}`}
+						>
+							{isViewerWinner ? 'YOU WON!' : 'YOU LOST'}
+						</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	</section>
 </div>
+
+<style>
+	.confetti-piece {
+		position: absolute;
+		top: -10%;
+		border-radius: 2px;
+		opacity: 0.95;
+		animation-name: confetti-fall;
+		animation-timing-function: linear;
+		animation-iteration-count: infinite;
+	}
+
+	@keyframes confetti-fall {
+		0% {
+			transform: translate3d(0, -10%, 0) rotate(0deg);
+		}
+		100% {
+			transform: translate3d(0, 120vh, 0) rotate(560deg);
+		}
+	}
+</style>
