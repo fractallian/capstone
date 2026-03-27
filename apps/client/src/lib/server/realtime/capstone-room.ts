@@ -10,6 +10,7 @@ import { clearCurrentGameForUser, setCurrentGameForUser } from './server';
 interface JoinOptions {
 	userId?: string;
 	gameId?: `${string}-${string}-${string}-${string}-${string}`;
+	needsOpponent?: boolean;
 }
 
 export class CapstoneRoom extends Room {
@@ -83,6 +84,7 @@ export class CapstoneRoom extends Room {
 
 		await this.persistSnapshot(this.buildSnapshot());
 		this.gamePersisted = true;
+		await this.setMetadata({ gameId: this.gameId, needsOpponent: false });
 	}
 
 	private getConnectedPlayerIndexes(): Array<0 | 1> {
@@ -118,6 +120,7 @@ export class CapstoneRoom extends Room {
 		this.gameEnded = Boolean(persistedGame.endedAt) || Boolean(this.game.board.winner());
 		this.winnerPlayerId = persistedGame.winnerPlayerId ?? null;
 		this.endedAt = persistedGame.endedAt ?? null;
+		await this.setMetadata({ gameId: this.gameId, needsOpponent: false });
 	}
 
 	private async finishGameIfWon(): Promise<void> {
@@ -160,7 +163,7 @@ export class CapstoneRoom extends Room {
 			this.gameId = options.gameId;
 		}
 
-		await this.setMetadata({ gameId: options?.gameId ?? null });
+		await this.setMetadata({ gameId: options?.gameId ?? null, needsOpponent: true });
 		await this.initializePersistedGame();
 
 		this.onMessage('command', async (client, rawMessage) => {
@@ -259,6 +262,23 @@ export class CapstoneRoom extends Room {
 
 		if (options.userId) {
 			this.userIdBySessionId.set(client.sessionId, options.userId);
+		}
+
+		// Prevent the same authenticated user from occupying both player seats.
+		if (options.userId) {
+			const connectedUserIds = new Set(
+				this.clients
+					.filter((joinedClient) => joinedClient.sessionId !== client.sessionId)
+					.map((joinedClient) => this.userIdBySessionId.get(joinedClient.sessionId))
+					.filter((userId): userId is string => Boolean(userId))
+			);
+			if (
+				connectedUserIds.has(options.userId) &&
+				!this.playerIndexBySessionId.has(client.sessionId)
+			) {
+				// Reject join cleanly so client-side matchmaking can fall back to creating a new room.
+				throw new Error('You are already seated in this game.');
+			}
 		}
 
 		if (!this.playerIndexBySessionId.has(client.sessionId)) {

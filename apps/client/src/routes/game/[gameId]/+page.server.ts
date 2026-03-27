@@ -2,7 +2,7 @@ import { env } from '$env/dynamic/private';
 import { error, redirect } from '@sveltejs/kit';
 import { and, desc, eq, or } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { boardState, game } from '$lib/server/db/schema';
+import { boardState, game, user } from '$lib/server/db/schema';
 import { getColyseusPublicUrl } from '$lib/server/realtime/server';
 
 export const load = async ({ locals, params, url }) => {
@@ -38,7 +38,13 @@ export const load = async ({ locals, params, url }) => {
 			gameId: requestedGameId,
 			gameState: latestBoardState?.board ?? null,
 			viewerPlayerIndex: 1 as const,
-			viewerUserId: locals.user.id
+			viewerUserId: locals.user.id,
+			player1: {
+				id: locals.user.id,
+				name: locals.user.name ?? null,
+				image: locals.user.image ?? null
+			},
+			player2: null
 		};
 	}
 
@@ -46,11 +52,32 @@ export const load = async ({ locals, params, url }) => {
 		throw error(404, 'Game not found');
 	}
 
+	const [player1, player2] = await Promise.all([
+		db.query.user.findFirst({
+			where: eq(user.id, currentGame.player1Id),
+			columns: { id: true, name: true, image: true }
+		}),
+		db.query.user.findFirst({
+			where: eq(user.id, currentGame.player2Id),
+			columns: { id: true, name: true, image: true }
+		})
+	]);
+
 	return {
 		colyseusUrl: getColyseusPublicUrl(url),
 		gameId: requestedGameId,
 		gameState: latestBoardState.board,
 		viewerPlayerIndex: currentGame.player1Id === locals.user.id ? 1 : 2,
-		viewerUserId: locals.user.id
+		viewerUserId: locals.user.id,
+		player1: player1 ?? {
+			id: currentGame.player1Id,
+			name: null,
+			image: null
+		},
+		player2: player2 ?? {
+			id: currentGame.player2Id,
+			name: null,
+			image: null
+		}
 	};
 };

@@ -32,8 +32,9 @@
 
 	function stacksKey(nextStacks: StackProps[]): string {
 		return nextStacks
-			.map((stack, stackIndex) =>
-				`${stackIndex}:${stack.pieces.map((piece) => `${piece.color}-${piece.size}`).join(',')}`
+			.map(
+				(stack, stackIndex) =>
+					`${stackIndex}:${stack.pieces.map((piece) => `${piece.color}-${piece.size}`).join(',')}`
 			)
 			.join('|');
 	}
@@ -52,9 +53,7 @@
 				...stack,
 				stackIndex,
 				isDropTarget: stackIndex < 16,
-				isTopPieceDraggable: Boolean(
-					canInteract && topPiece && topPiece.color === draggableColor
-				)
+				isTopPieceDraggable: Boolean(canInteract && topPiece && topPiece.color === draggableColor)
 			};
 		})
 	);
@@ -251,6 +250,11 @@
 	.game__board {
 		width: 100%;
 		height: 100%;
+	}
+
+	.game--inactive .game__board {
+		background: rgb(105, 107, 109);
+		border-radius: 0.75rem;
 	}
 
 	.game__pool {

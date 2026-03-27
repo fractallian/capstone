@@ -22,6 +22,11 @@
 				status: 'in_progress';
 				startedAt: string;
 				endedAt: null;
+				isYourTurn: boolean;
+			}[];
+			waitingGames: {
+				id: string;
+				status: 'waiting';
 			}[];
 			completedGames: {
 				id: string;
@@ -266,8 +271,20 @@
 
 		try {
 			const client = new Client(data.colyseusUrl);
-			// joinOrCreate first tries to join an available room before creating a new one.
-			room = await client.joinOrCreate('capstone', { userId: data.user.id });
+			try {
+				// Prefer joining a room that is still waiting for player 2.
+				room = await client.join('capstone', {
+					userId: data.user.id,
+					needsOpponent: true
+				});
+			} catch {
+				// No waiting game found: create a fresh one.
+				room = await client.create('capstone', {
+					userId: data.user.id,
+					gameId: crypto.randomUUID(),
+					needsOpponent: true
+				});
+			}
 			wireRoom(room);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -327,7 +344,38 @@
 					<p class="text-sm text-rose-700">{matchmakingMessage}</p>
 				{/if}
 
-				<div class="grid gap-6 lg:grid-cols-2">
+				<div class="grid gap-6 lg:grid-cols-3">
+					<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+						<div class="flex items-center justify-between gap-3">
+							<h2 class="text-lg font-semibold text-slate-900">Waiting</h2>
+							<span class="text-sm text-slate-500">{data.waitingGames.length}</span>
+						</div>
+
+						{#if data.waitingGames.length > 0}
+							<div class="mt-4 flex flex-col gap-3">
+								{#each data.waitingGames as gameRecord (gameRecord.id)}
+									<a
+										class="block rounded-lg border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:bg-amber-100/40"
+										href={`/game/${gameRecord.id}`}
+									>
+										<div class="flex items-center justify-between gap-3">
+											<p class="text-sm font-medium text-slate-900">Waiting for opponent</p>
+											<span
+												class="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500"
+												aria-label="Waiting for opponent"
+											></span>
+										</div>
+										<p class="mt-1 text-xs text-slate-600">
+											Game ready. Open to wait for another player.
+										</p>
+									</a>
+								{/each}
+							</div>
+						{:else}
+							<p class="mt-4 text-sm text-slate-600">No waiting games right now.</p>
+						{/if}
+					</section>
+
 					<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
 						<div class="flex items-center justify-between gap-3">
 							<h2 class="text-lg font-semibold text-slate-900">In Progress</h2>
@@ -338,7 +386,11 @@
 							<div class="mt-4 flex flex-col gap-3">
 								{#each data.inProgressGames as gameRecord (gameRecord.id)}
 									<a
-										class="block rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+										class={`block rounded-lg border p-4 transition hover:border-slate-300 ${
+											gameRecord.isYourTurn
+												? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100/60'
+												: 'border-slate-200 bg-slate-50 hover:bg-white'
+										}`}
 										href={`/game/${gameRecord.id}`}
 									>
 										<div class="flex items-center gap-2">

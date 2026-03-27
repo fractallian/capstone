@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { desc, or, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { game, user } from '$lib/server/db/schema';
+import { boardState, game, user } from '$lib/server/db/schema';
 import { getColyseusPublicUrl } from '$lib/server/realtime/server';
 
 export const load = async ({ locals, url }) => {
@@ -49,18 +49,39 @@ export const load = async ({ locals, url }) => {
 		])
 	);
 
-	const inProgressGames = lobbyGames
-		.filter((gameRecord) => !gameRecord.endedAt)
-		.map((gameRecord) => ({
-			id: gameRecord.id,
-			opponent:
-				opponentById.get(
-					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id
-				) ?? null,
-			status: 'in_progress' as const,
-			startedAt: gameRecord.startedAt.toISOString(),
-			endedAt: null
-		}));
+	const inProgressGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt);
+	const inProgressSnapshots = await Promise.all(
+		inProgressGameRows.map(async (gameRecord) => {
+			const latestBoardState = await db.query.boardState.findFirst({
+				where: eq(boardState.gameId, gameRecord.id),
+				orderBy: [desc(boardState.createdAt)]
+			});
+
+			const snapshot = latestBoardState?.board as { currentTurnIndex?: 0 | 1 } | null | undefined;
+			const currentTurnIndex =
+				snapshot && !Array.isArray(snapshot) && snapshot.currentTurnIndex === 1 ? 1 : 0;
+			const viewerPlayerIndex = gameRecord.player1Id === locals.user?.id ? 1 : 2;
+
+			return {
+				id: gameRecord.id,
+				opponent:
+					opponentById.get(
+						gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id
+					) ?? null,
+				status: 'in_progress' as const,
+				startedAt: gameRecord.startedAt.toISOString(),
+				endedAt: null,
+				isYourTurn:
+					(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+					(viewerPlayerIndex === 2 && currentTurnIndex === 1)
+			};
+		})
+	);
+
+	const inProgressGames = inProgressSnapshots.sort((a, b) => {
+		if (a.isYourTurn === b.isYourTurn) return 0;
+		return a.isYourTurn ? -1 : 1;
+	});
 
 	const completedGames = lobbyGames
 		.filter((gameRecord) => Boolean(gameRecord.endedAt))
@@ -76,6 +97,18 @@ export const load = async ({ locals, url }) => {
 			startedAt: gameRecord.startedAt.toISOString(),
 			endedAt: gameRecord.endedAt?.toISOString() ?? null
 		}));
+
+	const waitingGames =
+		locals.currentGameId &&
+		!inProgressGames.some((gameRecord) => gameRecord.id === locals.currentGameId) &&
+		!completedGames.some((gameRecord) => gameRecord.id === locals.currentGameId)
+			? [
+					{
+						id: locals.currentGameId,
+						status: 'waiting' as const
+					}
+				]
+			: [];
 
 	const currentGameId =
 		locals.currentGameId &&
@@ -96,6 +129,7 @@ export const load = async ({ locals, url }) => {
 				}
 			: null,
 		inProgressGames,
+		waitingGames,
 		completedGames
 	};
 };

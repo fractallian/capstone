@@ -31,6 +31,8 @@
 			gameState: GameStateLike;
 			viewerPlayerIndex: 1 | 2;
 			viewerUserId: string;
+			player1: { id: string; name: string | null; image: string | null } | null;
+			player2: { id: string; name: string | null; image: string | null } | null;
 		};
 	} = $props();
 
@@ -82,6 +84,13 @@
 	function getEndedAt(gameState: GameStateLike): string | null {
 		if (!gameState || Array.isArray(gameState)) return null;
 		return gameState.endedAt ?? null;
+	}
+
+	function getPlayerLabel(
+		player: { id: string; name: string | null; image: string | null } | null
+	) {
+		if (!player) return 'Waiting...';
+		return player.name?.trim() || `Player ${player.id.slice(-4)}`;
 	}
 
 	let game = $derived(Game.deserialize(getMoves(liveSnapshot)));
@@ -289,33 +298,98 @@
 <main class="min-h-screen bg-slate-50 px-4 py-8">
 	<section class="mx-auto flex w-full max-w-6xl flex-col gap-6">
 		<div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-			<h1 class="text-2xl font-semibold text-slate-900">Game</h1>
-			<p class="mt-2 text-sm text-slate-600">
-				Current game id:
-				<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">{data.gameId}</code>
-			</p>
-			<p class="mt-2 text-sm text-slate-600">
-				Room status:
-				<strong
-					class={`ml-1 ${
-						roomStatus === 'opponent_connected' ? 'text-emerald-600' : 'text-slate-900'
+			<div class="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+				<div
+					class={`relative rounded-lg border bg-violet-50 p-4 ${
+						currentTurnIndex === 0
+							? data.viewerPlayerIndex === 1
+								? 'border-2 border-emerald-600'
+								: 'border-2 border-slate-500'
+							: 'border-slate-200'
 					}`}
 				>
-					{roomStatus === 'opponent_connected'
-						? 'Opponent connected'
-						: roomStatus === 'waiting_for_opponent'
-							? 'Opponent not connected'
-							: roomStatus === 'connecting'
-								? 'Connecting...'
-								: 'Disconnected'}
-				</strong>
-			</p>
+					{#if roomStatus === 'opponent_connected' && data.viewerPlayerIndex === 2}
+						<span
+							class="absolute top-1/2 right-3 h-3 w-3 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white"
+							aria-label="Opponent connected"
+							title="Opponent connected"
+						></span>
+					{/if}
+					<div class="flex items-center gap-3">
+						{#if data.player1?.image}
+							<img
+								src={data.player1.image}
+								alt={getPlayerLabel(data.player1)}
+								class="h-10 w-10 rounded-full object-cover"
+							/>
+						{:else}
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+							>
+								{getPlayerLabel(data.player1).slice(0, 2).toUpperCase()}
+							</div>
+						{/if}
+						<div class="min-w-0">
+							<p class="truncate text-sm font-semibold text-slate-900">
+								{getPlayerLabel(data.player1)}
+							</p>
+							<p class="text-xs text-slate-600">Player 1</p>
+						</div>
+					</div>
+				</div>
+				<div class="text-center text-lg font-bold text-slate-500">VS.</div>
+				<div
+					class={`relative rounded-lg border bg-amber-50 p-4 ${
+						currentTurnIndex === 1
+							? data.viewerPlayerIndex === 2
+								? 'border-2 border-emerald-600'
+								: 'border-2 border-slate-500'
+							: 'border-slate-200'
+					}`}
+				>
+					{#if roomStatus === 'opponent_connected' && data.viewerPlayerIndex === 1}
+						<span
+							class="absolute top-1/2 right-3 h-3 w-3 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white"
+							aria-label="Opponent connected"
+							title="Opponent connected"
+						></span>
+					{/if}
+					<div class="flex items-center gap-3">
+						{#if data.player2?.image}
+							<img
+								src={data.player2.image}
+								alt={getPlayerLabel(data.player2)}
+								class="h-10 w-10 rounded-full object-cover"
+							/>
+						{:else}
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+							>
+								{getPlayerLabel(data.player2).slice(0, 2).toUpperCase()}
+							</div>
+						{/if}
+						<div class="min-w-0">
+							<p class="truncate text-sm font-semibold text-slate-900">
+								{getPlayerLabel(data.player2)}
+							</p>
+							<p class="text-xs text-slate-600">Player 2</p>
+						</div>
+					</div>
+				</div>
+			</div>
 			{#if gameMessage}
 				<p class="mt-2 text-sm text-rose-700">{gameMessage}</p>
 			{/if}
 		</div>
 
-		<div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+		<div
+			class={`rounded-lg border p-4 shadow-sm ${
+				(data.viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+				(data.viewerPlayerIndex === 2 && currentTurnIndex === 1)
+					? 'border-slate-200 bg-white'
+					: 'border-slate-200 bg-slate-300'
+			}`}
+		>
 			<div class="mx-auto aspect-[6/4] w-full max-w-5xl">
 				<GameComponent
 					{stacks}
