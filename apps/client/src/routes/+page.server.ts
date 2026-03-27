@@ -27,7 +27,7 @@ export const load = async ({ locals, url }) => {
 						gameRecord.player1Id === locals.user!.id ? gameRecord.player2Id : gameRecord.player1Id
 					)
 				)
-			)
+			).filter((id): id is string => Boolean(id))
 		: [];
 
 	const opponentRows =
@@ -49,7 +49,8 @@ export const load = async ({ locals, url }) => {
 		])
 	);
 
-	const inProgressGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt);
+	const waitingGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id);
+	const inProgressGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt && !!gameRecord.player2Id);
 	const inProgressSnapshots = await Promise.all(
 		inProgressGameRows.map(async (gameRecord) => {
 			const latestBoardState = await db.query.boardState.findFirst({
@@ -61,13 +62,12 @@ export const load = async ({ locals, url }) => {
 			const currentTurnIndex =
 				snapshot && !Array.isArray(snapshot) && snapshot.currentTurnIndex === 1 ? 1 : 0;
 			const viewerPlayerIndex = gameRecord.player1Id === locals.user?.id ? 1 : 2;
+			const opponentId =
+				gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
 
 			return {
 				id: gameRecord.id,
-				opponent:
-					opponentById.get(
-						gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id
-					) ?? null,
+				opponent: opponentId ? opponentById.get(opponentId) ?? null : null,
 				status: 'in_progress' as const,
 				startedAt: gameRecord.startedAt.toISOString(),
 				endedAt: null,
@@ -87,10 +87,11 @@ export const load = async ({ locals, url }) => {
 		.filter((gameRecord) => Boolean(gameRecord.endedAt))
 		.map((gameRecord) => ({
 			id: gameRecord.id,
-			opponent:
-				opponentById.get(
-					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id
-				) ?? null,
+			opponent: (() => {
+				const opponentId =
+					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
+				return opponentId ? opponentById.get(opponentId) ?? null : null;
+			})(),
 			result:
 				gameRecord.winnerPlayerId && gameRecord.winnerPlayerId === locals.user?.id ? 'win' : 'loss',
 			status: 'completed' as const,
@@ -98,17 +99,11 @@ export const load = async ({ locals, url }) => {
 			endedAt: gameRecord.endedAt?.toISOString() ?? null
 		}));
 
-	const waitingGames =
-		locals.currentGameId &&
-		!inProgressGames.some((gameRecord) => gameRecord.id === locals.currentGameId) &&
-		!completedGames.some((gameRecord) => gameRecord.id === locals.currentGameId)
-			? [
-					{
-						id: locals.currentGameId,
-						status: 'waiting' as const
-					}
-				]
-			: [];
+	const waitingGames = waitingGameRows.map((gameRecord) => ({
+		id: gameRecord.id,
+		status: 'waiting' as const,
+		startedAt: gameRecord.startedAt.toISOString()
+	}));
 
 	const currentGameId =
 		locals.currentGameId &&

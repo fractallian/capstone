@@ -31,8 +31,8 @@
 			gameState: GameStateLike;
 			viewerPlayerIndex: 1 | 2;
 			viewerUserId: string;
-			player1: { id: string; name: string | null; image: string | null } | null;
-			player2: { id: string; name: string | null; image: string | null } | null;
+			player1: { id: string | null; name: string | null; image: string | null } | null;
+			player2: { id: string | null; name: string | null; image: string | null } | null;
 		};
 	} = $props();
 
@@ -87,10 +87,12 @@
 	}
 
 	function getPlayerLabel(
-		player: { id: string; name: string | null; image: string | null } | null
+		player: { id: string | null; name: string | null; image: string | null } | null
 	) {
 		if (!player) return 'Waiting...';
-		return player.name?.trim() || `Player ${player.id.slice(-4)}`;
+		if (player.name?.trim()) return player.name.trim();
+		if (player.id) return `Player ${player.id.slice(-4)}`;
+		return 'Waiting...';
 	}
 
 	let game = $derived(Game.deserialize(getMoves(liveSnapshot)));
@@ -100,7 +102,6 @@
 	let isGameEnded = $derived(Boolean(endedAt));
 	let canInteract = $derived(
 		!isGameEnded &&
-			roomStatus === 'opponent_connected' &&
 			((data.viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
 				(data.viewerPlayerIndex === 2 && currentTurnIndex === 1))
 	);

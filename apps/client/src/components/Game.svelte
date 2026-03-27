@@ -201,7 +201,9 @@
 		</span>
 	</div>
 
-	<div class="game__pool game__pool--left">
+	<div
+		class={`game__pool game__pool--left ${localCurrentTurnIndex === 0 ? 'game__pool--active' : ''}`.trim()}
+	>
 		<Pool stacks={player1PoolStacks} />
 	</div>
 
@@ -209,7 +211,9 @@
 		<Board stacks={boardStacks} />
 	</div>
 
-	<div class="game__pool game__pool--right">
+	<div
+		class={`game__pool game__pool--right ${localCurrentTurnIndex === 1 ? 'game__pool--active' : ''}`.trim()}
+	>
 		<Pool stacks={player2PoolStacks} />
 	</div>
 </div>
@@ -260,5 +264,11 @@
 	.game__pool {
 		width: 100%;
 		height: 100%;
+		border-radius: 0.75rem;
+	}
+
+	.game__pool--active {
+		border: 2px solid rgb(51 65 85);
+		background: rgba(248 250 252 / 0.5);
 	}
 </style>

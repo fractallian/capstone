@@ -57,10 +57,12 @@ export const load = async ({ locals, params, url }) => {
 			where: eq(user.id, currentGame.player1Id),
 			columns: { id: true, name: true, image: true }
 		}),
-		db.query.user.findFirst({
-			where: eq(user.id, currentGame.player2Id),
-			columns: { id: true, name: true, image: true }
-		})
+		currentGame.player2Id
+			? db.query.user.findFirst({
+					where: eq(user.id, currentGame.player2Id),
+					columns: { id: true, name: true, image: true }
+				})
+			: Promise.resolve(null)
 	]);
 
 	return {
@@ -74,10 +76,6 @@ export const load = async ({ locals, params, url }) => {
 			name: null,
 			image: null
 		},
-		player2: player2 ?? {
-			id: currentGame.player2Id,
-			name: null,
-			image: null
-		}
+		player2: player2 ?? null
 	};
 };

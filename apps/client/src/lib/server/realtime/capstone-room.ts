@@ -54,7 +54,6 @@ export class CapstoneRoom extends Room {
 
 	private async ensurePersistedGame() {
 		if (this.gamePersisted) return;
-
 		const player1Client = this.clients.find(
 			(client) => this.playerIndexBySessionId.get(client.sessionId) === 0
 		);
@@ -68,12 +67,14 @@ export class CapstoneRoom extends Room {
 			? this.userIdBySessionId.get(player2Client.sessionId)
 			: undefined;
 
-		if (!player1Id || !player2Id) {
-			throw new Error('Cannot persist game without both players.');
+		if (!player1Id) {
+			throw new Error('Cannot persist game without player 1.');
 		}
 
 		this.playerUserIdByIndex.set(0, player1Id);
-		this.playerUserIdByIndex.set(1, player2Id);
+		if (player2Id) {
+			this.playerUserIdByIndex.set(1, player2Id);
+		}
 
 		await db.insert(game).values({
 			id: this.gameId,
@@ -84,11 +85,37 @@ export class CapstoneRoom extends Room {
 
 		await this.persistSnapshot(this.buildSnapshot());
 		this.gamePersisted = true;
+		await this.setMetadata({ gameId: this.gameId, needsOpponent: !player2Id });
+	}
+
+	private async assignSecondPlayerIfNeeded() {
+		if (!this.gamePersisted) return;
+		if (this.getOccupiedSeatCount() < this.maxClients) return;
+		if (this.playerUserIdByIndex.get(1)) return;
+
+		const player2Client = this.clients.find(
+			(client) => this.playerIndexBySessionId.get(client.sessionId) === 1
+		);
+		const player2Id = player2Client
+			? this.userIdBySessionId.get(player2Client.sessionId)
+			: undefined;
+		if (!player2Id) return;
+
+		this.playerUserIdByIndex.set(1, player2Id);
+		await db
+			.update(game)
+			.set({ player2Id })
+			.where(eq(game.id, this.gameId));
+
 		await this.setMetadata({ gameId: this.gameId, needsOpponent: false });
 	}
 
 	private getConnectedPlayerIndexes(): Array<0 | 1> {
 		return Array.from(new Set(this.playerIndexBySessionId.values())).sort();
+	}
+
+	private getOccupiedSeatCount(): number {
+		return new Set(this.playerIndexBySessionId.values()).size;
 	}
 
 	private broadcastPresence() {
@@ -115,12 +142,14 @@ export class CapstoneRoom extends Room {
 		}
 
 		this.playerUserIdByIndex.set(0, persistedGame.player1Id);
-		this.playerUserIdByIndex.set(1, persistedGame.player2Id);
+		if (persistedGame.player2Id) {
+			this.playerUserIdByIndex.set(1, persistedGame.player2Id);
+		}
 		this.gamePersisted = true;
 		this.gameEnded = Boolean(persistedGame.endedAt) || Boolean(this.game.board.winner());
 		this.winnerPlayerId = persistedGame.winnerPlayerId ?? null;
 		this.endedAt = persistedGame.endedAt ?? null;
-		await this.setMetadata({ gameId: this.gameId, needsOpponent: false });
+		await this.setMetadata({ gameId: this.gameId, needsOpponent: !persistedGame.player2Id });
 	}
 
 	private async finishGameIfWon(): Promise<void> {
@@ -264,24 +293,21 @@ export class CapstoneRoom extends Room {
 			this.userIdBySessionId.set(client.sessionId, options.userId);
 		}
 
-		// Prevent the same authenticated user from occupying both player seats.
-		if (options.userId) {
-			const connectedUserIds = new Set(
-				this.clients
-					.filter((joinedClient) => joinedClient.sessionId !== client.sessionId)
-					.map((joinedClient) => this.userIdBySessionId.get(joinedClient.sessionId))
-					.filter((userId): userId is string => Boolean(userId))
-			);
-			if (
-				connectedUserIds.has(options.userId) &&
-				!this.playerIndexBySessionId.has(client.sessionId)
-			) {
-				// Reject join cleanly so client-side matchmaking can fall back to creating a new room.
-				throw new Error('You are already seated in this game.');
-			}
-		}
-
 		if (!this.playerIndexBySessionId.has(client.sessionId)) {
+			// If this user is already seated in this room (another tab/session),
+			// reuse the same seat instead of trying to assign a second seat.
+			if (options.userId) {
+				const existingSessionEntry = Array.from(this.userIdBySessionId.entries()).find(
+					([sessionId, userId]) => sessionId !== client.sessionId && userId === options.userId
+				);
+				const existingSeat = existingSessionEntry
+					? this.playerIndexBySessionId.get(existingSessionEntry[0])
+					: undefined;
+				if (existingSeat !== undefined) {
+					this.playerIndexBySessionId.set(client.sessionId, existingSeat);
+				}
+			}
+
 			let matchedPersistedPlayer = false;
 
 			if (this.gamePersisted && options.userId) {
@@ -290,7 +316,7 @@ export class CapstoneRoom extends Room {
 				const matchedIndex =
 					options.userId === player1Id ? 0 : options.userId === player2Id ? 1 : undefined;
 
-				if (matchedIndex === undefined) {
+				if (matchedIndex === undefined && player2Id) {
 					client.send('event', {
 						type: 'invalid_move',
 						message: 'You are not a player in this game.',
@@ -300,11 +326,13 @@ export class CapstoneRoom extends Room {
 					return;
 				}
 
-				this.playerIndexBySessionId.set(client.sessionId, matchedIndex);
-				matchedPersistedPlayer = true;
+				if (matchedIndex !== undefined) {
+					this.playerIndexBySessionId.set(client.sessionId, matchedIndex);
+					matchedPersistedPlayer = true;
+				}
 			}
 
-			if (!matchedPersistedPlayer && this.playerIndexBySessionId.size >= this.maxClients) {
+			if (!matchedPersistedPlayer && this.getOccupiedSeatCount() >= this.maxClients) {
 				client.send('event', {
 					type: 'invalid_move',
 					message: 'Game is full.',
@@ -315,9 +343,10 @@ export class CapstoneRoom extends Room {
 			}
 
 			if (!this.playerIndexBySessionId.has(client.sessionId)) {
+				const occupiedSeats = new Set(this.playerIndexBySessionId.values());
 				this.playerIndexBySessionId.set(
 					client.sessionId,
-					this.playerIndexBySessionId.size === 0 ? 0 : 1
+					occupiedSeats.has(0) ? 1 : 0
 				);
 			}
 		}
@@ -326,7 +355,8 @@ export class CapstoneRoom extends Room {
 			setCurrentGameForUser(options.userId, this.gameId);
 		}
 
-		if (!this.gamePersisted && this.playerIndexBySessionId.size < this.maxClients) {
+		if (!this.gamePersisted && this.getOccupiedSeatCount() < this.maxClients) {
+			await this.ensurePersistedGame();
 			client.send('event', {
 				type: 'waiting_for_player',
 				gameId: this.gameId
@@ -343,6 +373,7 @@ export class CapstoneRoom extends Room {
 		if (!this.gamePersisted) {
 			await this.ensurePersistedGame();
 		}
+		await this.assignSecondPlayerIfNeeded();
 
 		for (const joinedClient of this.clients) {
 			const joinedUserId = this.userIdBySessionId.get(joinedClient.sessionId);
@@ -365,10 +396,8 @@ export class CapstoneRoom extends Room {
 	}
 
 	onLeave(client: Client) {
-		const userId = this.userIdBySessionId.get(client.sessionId);
-		if (userId) {
-			clearCurrentGameForUser(userId);
-		}
+		// Keep "current game" mapping on disconnect so waiting/async games
+		// remain discoverable from the lobby after refresh/reconnect.
 		this.userIdBySessionId.delete(client.sessionId);
 		this.playerIndexBySessionId.delete(client.sessionId);
 		this.broadcastPresence();

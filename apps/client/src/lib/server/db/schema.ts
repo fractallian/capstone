@@ -14,9 +14,7 @@ export const game = pgTable(
 		player1Id: text('player1_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'restrict' }),
-		player2Id: text('player2_id')
-			.notNull()
-			.references(() => user.id, { onDelete: 'restrict' }),
+		player2Id: text('player2_id').references(() => user.id, { onDelete: 'restrict' }),
 		winnerPlayerId: text('winner_player_id').references(() => user.id, { onDelete: 'restrict' }),
 		startedAt: timestamp('started_at').notNull(),
 		endedAt: timestamp('ended_at')

@@ -27,6 +27,7 @@
 			waitingGames: {
 				id: string;
 				status: 'waiting';
+				startedAt: string;
 			}[];
 			completedGames: {
 				id: string;
@@ -166,7 +167,7 @@
 				const client = new Client(data.colyseusUrl);
 				const joined = await client.joinById(roomId, { userId: data.user.id });
 				room = joined;
-				wireRoom(joined);
+				wireRoom(joined, { navigateOnWaiting: true });
 			},
 			clearEvents: () => {
 				debugEvents = [];
@@ -223,7 +224,7 @@
 		}
 	}
 
-	function wireRoom(currentRoom: Room) {
+	function wireRoom(currentRoom: Room, options: { navigateOnWaiting: boolean } = { navigateOnWaiting: true }) {
 		exposeRoomForDev(currentRoom);
 		currentRoom.onLeave(() => {
 			if (room === currentRoom) {
@@ -245,7 +246,9 @@
 			if (parsed.data.type === 'waiting_for_player') {
 				matchmakingState = 'waiting';
 				matchmakingMessage = 'Waiting for another player...';
-				void goto(`/game/${parsed.data.gameId}`);
+				if (options.navigateOnWaiting) {
+					void goto(`/game/${parsed.data.gameId}`);
+				}
 				return;
 			}
 
@@ -271,6 +274,7 @@
 
 		try {
 			const client = new Client(data.colyseusUrl);
+			let createdNewRoom = false;
 			try {
 				// Prefer joining a room that is still waiting for player 2.
 				room = await client.join('capstone', {
@@ -279,13 +283,14 @@
 				});
 			} catch {
 				// No waiting game found: create a fresh one.
+				createdNewRoom = true;
 				room = await client.create('capstone', {
 					userId: data.user.id,
 					gameId: crypto.randomUUID(),
 					needsOpponent: true
 				});
 			}
-			wireRoom(room);
+			wireRoom(room, { navigateOnWaiting: !createdNewRoom });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			if (attempt < 1) {
@@ -325,14 +330,6 @@
 						>
 							{isStartingGame ? 'Starting...' : 'New Game'}
 						</button>
-						<button
-							type="button"
-							class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-							disabled={isSigningOut}
-							onclick={signOut}
-						>
-							{isSigningOut ? 'Signing out…' : 'Log out'}
-						</button>
 					</div>
 				</div>
 
@@ -354,10 +351,7 @@
 						{#if data.waitingGames.length > 0}
 							<div class="mt-4 flex flex-col gap-3">
 								{#each data.waitingGames as gameRecord (gameRecord.id)}
-									<a
-										class="block rounded-lg border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:bg-amber-100/40"
-										href={`/game/${gameRecord.id}`}
-									>
+									<div class="block rounded-lg border border-amber-200 bg-amber-50 p-4">
 										<div class="flex items-center justify-between gap-3">
 											<p class="text-sm font-medium text-slate-900">Waiting for opponent</p>
 											<span
@@ -366,9 +360,9 @@
 											></span>
 										</div>
 										<p class="mt-1 text-xs text-slate-600">
-											Game ready. Open to wait for another player.
+											Started {formatDate(gameRecord.startedAt)}
 										</p>
-									</a>
+									</div>
 								{/each}
 							</div>
 						{:else}
