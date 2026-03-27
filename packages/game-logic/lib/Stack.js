@@ -26,6 +26,7 @@ export class Stack {
         }
         return false;
     }
+    /** Only a strictly larger piece may be placed on top; same size is not allowed. */
     canAddPiece(piece) {
         if (this.isEmpty())
             return true;

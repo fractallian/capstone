@@ -10,5 +10,5 @@
  * X2||X3|O2|  |  ||O1
  *    |  |  |O3|  |
  */
-import type { Game } from "./Game";
+import type { Game } from './Game';
 export declare function viewGameState(game: Game): string;

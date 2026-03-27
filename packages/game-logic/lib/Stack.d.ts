@@ -1,5 +1,5 @@
-import type { Game } from "./Game";
-import type { Piece } from "./Piece";
+import type { Game } from './Game';
+import type { Piece } from './Piece';
 export declare enum StackLocation {
     board = "B",
     pool = "P"
@@ -13,5 +13,6 @@ export declare class Stack {
     isEmpty(): boolean;
     topPiece(): Piece | undefined;
     addPiece(piece: Piece): boolean;
+    /** Only a strictly larger piece may be placed on top; same size is not allowed. */
     canAddPiece(piece: Piece): boolean;
 }

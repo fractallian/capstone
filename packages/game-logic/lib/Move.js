@@ -1,8 +1,8 @@
-import { StackLocation } from "./Stack";
+import { StackLocation } from './Stack';
 export class InvalidMoveError extends Error {
-    constructor(errors = ["Move rejected by game rules."]) {
-        super(errors.join("; "));
-        this.name = "InvalidMoveError";
+    constructor(errors = ['Move rejected by game rules.']) {
+        super(errors.join('; '));
+        this.name = 'InvalidMoveError';
         this.errors = errors;
     }
 }
@@ -32,32 +32,48 @@ export class Move {
     isValid() {
         const errors = [];
         if (this.fromStack === this.toStack) {
-            errors.push("cannot move to the same stack");
+            errors.push('cannot move to the same stack');
             return { isValid: false, errors };
         }
         const piece = this.piece();
         if (!piece) {
-            errors.push("no piece on from stack");
+            errors.push('no piece on from stack');
             return { isValid: false, errors };
         }
         if (this.game.currentTurn !== piece.player) {
             errors.push("not the current player's turn");
             return { isValid: false, errors };
         }
+        if (!this.toStack.isEmpty()) {
+            const top = this.toStack.topPiece();
+            if (piece.size === top.size) {
+                errors.push('cannot stack on a piece of the same size');
+                return { isValid: false, errors };
+            }
+        }
         if (!this.toStack.canAddPiece(piece)) {
-            errors.push("destination cannot accept piece");
+            errors.push('destination cannot accept piece');
             return { isValid: false, errors };
         }
         if (this.fromStack.location === StackLocation.board) {
             return { isValid: true, errors };
         }
-        // when moving from pool, destination must be a board stack that is either empty or
-        // covers one of your opponent's three in a row
+        // Pool → board: empty cells are always allowed.
         if (this.toStack.isEmpty())
             return { isValid: true, errors };
+        const topPiece = this.toStack.topPiece();
+        if (!topPiece)
+            return { isValid: true, errors };
+        // Stacking on your own pieces (larger on smaller) follows normal stack rules only.
+        if (topPiece.player === piece.player) {
+            return { isValid: true, errors };
+        }
+        // Opponent on top: canAddPiece already ensures your piece is larger than theirs
+        // (you may only cover a smaller opponent piece). That case is forbidden from the
+        // pool unless it is the three-in-a-row exception (covering one of their three).
         if (this.coversOneOfThree())
             return { isValid: true, errors };
-        errors.push("pool moves must go to an empty stack or cover a three-in-a-row");
+        errors.push('pool moves cannot cover an opponent piece unless it completes the three-in-a-row cover rule');
         return { isValid: false, errors };
     }
     perform(validate = true) {
@@ -67,7 +83,9 @@ export class Move {
                 throw new InvalidMoveError(validation.errors);
             }
         }
-        this.toStack.addPiece(this.piece());
+        const piece = this.piece();
+        this.toStack.addPiece(piece);
         this.fromStack.pieces.pop();
+        piece.stack = this.toStack;
     }
 }

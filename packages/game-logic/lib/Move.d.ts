@@ -1,7 +1,7 @@
-import type { Game } from "./Game";
-import type { Piece } from "./Piece";
-import type { Player } from "./Player";
-import { type Stack } from "./Stack";
+import type { Game } from './Game';
+import type { Piece } from './Piece';
+import type { Player } from './Player';
+import { type Stack } from './Stack';
 export declare class InvalidMoveError extends Error {
     errors: string[];
     constructor(errors?: string[]);

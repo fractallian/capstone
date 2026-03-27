@@ -1,5 +1,5 @@
-import { Piece } from "./Piece";
-import { Stack, StackLocation } from "./Stack";
+import { Piece } from './Piece';
+import { Stack, StackLocation } from './Stack';
 export class Pool {
     constructor(player) {
         this.stacks = [];

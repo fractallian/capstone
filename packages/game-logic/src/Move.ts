@@ -68,6 +68,14 @@ export class Move {
 			return { isValid: false, errors };
 		}
 
+		if (!this.toStack.isEmpty()) {
+			const top = this.toStack.topPiece() as Piece;
+			if (piece.size === top.size) {
+				errors.push('cannot stack on a piece of the same size');
+				return { isValid: false, errors };
+			}
+		}
+
 		if (!this.toStack.canAddPiece(piece)) {
 			errors.push('destination cannot accept piece');
 			return { isValid: false, errors };
@@ -77,12 +85,25 @@ export class Move {
 			return { isValid: true, errors };
 		}
 
-		// when moving from pool, destination must be a board stack that is either empty or
-		// covers one of your opponent's three in a row
+		// Pool → board: empty cells are always allowed.
 		if (this.toStack.isEmpty()) return { isValid: true, errors };
+
+		const topPiece = this.toStack.topPiece();
+		if (!topPiece) return { isValid: true, errors };
+
+		// Stacking on your own pieces (larger on smaller) follows normal stack rules only.
+		if (topPiece.player === piece.player) {
+			return { isValid: true, errors };
+		}
+
+		// Opponent on top: canAddPiece already ensures your piece is larger than theirs
+		// (you may only cover a smaller opponent piece). That case is forbidden from the
+		// pool unless it is the three-in-a-row exception (covering one of their three).
 		if (this.coversOneOfThree()) return { isValid: true, errors };
 
-		errors.push('pool moves must go to an empty stack or cover a three-in-a-row');
+		errors.push(
+			'pool moves cannot cover an opponent piece unless it completes the three-in-a-row cover rule'
+		);
 		return { isValid: false, errors };
 	}
 

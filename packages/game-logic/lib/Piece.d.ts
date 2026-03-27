@@ -1,5 +1,5 @@
-import type { Player } from "./Player";
-import type { Stack } from "./Stack";
+import type { Player } from './Player';
+import type { Stack } from './Stack';
 export declare enum PieceSize {
     One = 0,
     Two = 1,

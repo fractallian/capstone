@@ -1,6 +1,6 @@
-import type { Game } from "./Game";
-import type { Player } from "./Player";
-import { Stack } from "./Stack";
+import type { Game } from './Game';
+import type { Player } from './Player';
+import { Stack } from './Stack';
 export declare class Board {
     game: Game;
     stacks: Stack[][];

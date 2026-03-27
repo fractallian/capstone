@@ -51,20 +51,39 @@ describe('Move', () => {
 		});
 
 		it('validates destination can accept the piece', () => {
-			// Place large piece on destination
 			const largePiece = new Piece(game.player1, PieceSize.Four, game.board.stacks[0][1]);
 			game.board.stacks[0][1].addPiece(largePiece);
+			// Drain top Four from pool so the moving piece is Three (smaller than Four on board)
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][2]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][0]);
 
-			// Try to move smaller piece on top
 			const move = new Move(
 				game.player1,
-				game.player1.pool.stacks[0], // Has pieces from size 0-3, top is size 3
+				game.player1.pool.stacks[0],
 				game.board.stacks[0][1]
 			);
 
 			expect(move.isValid()).toEqual({
 				isValid: false,
 				errors: ['destination cannot accept piece']
+			});
+		});
+
+		it('rejects stacking on same-sized piece when destination is occupied', () => {
+			const top = new Piece(game.player1, PieceSize.Three, game.board.stacks[0][1]);
+			game.board.stacks[0][1].addPiece(top);
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][2]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][0]);
+
+			const move = new Move(
+				game.player1,
+				game.player1.pool.stacks[0],
+				game.board.stacks[0][1]
+			);
+
+			expect(move.isValid()).toEqual({
+				isValid: false,
+				errors: ['cannot stack on a piece of the same size']
 			});
 		});
 	});
@@ -77,24 +96,42 @@ describe('Move', () => {
 			expect(isValid(move)).toBe(true);
 		});
 
-		it('blocks moves from pool to occupied spaces (without three-in-a-row)', () => {
-			// Place opponent piece first
-			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][0]);
-			game.currentTurn = game.player1; // Reset turn for test
+		it('blocks pool moves onto opponent smaller piece without three-in-a-row cover', () => {
+			// P2 has Three on (0,0); P1 can legally stack Four from another pool stack on top.
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][2]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[0][1]);
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][3]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[0][0]);
 
-			// Try to move from pool to occupied space
 			const move = new Move(
 				game.player1,
-				game.player1.pool.stacks[1], // Different stack
+				game.player1.pool.stacks[1],
 				game.board.stacks[0][0]
 			);
 
 			const result = move.isValid();
 			expect(result.isValid).toBe(false);
-			expect([
-				'destination cannot accept piece',
-				'pool moves must go to an empty stack or cover a three-in-a-row'
-			]).toContain(result.errors[0]);
+			expect(result.errors[0]).toBe(
+				'pool moves cannot cover an opponent piece unless it completes the three-in-a-row cover rule'
+			);
+		});
+
+		it('allows pool moves onto own smaller piece (normal stacking)', () => {
+			// (0,2) ends with P1 Two on top; P1 pool[1] top is Four — stack on own piece.
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][2]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][0]);
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][3]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][1]);
+			game.makeMove(game.board.stacks[0][2], game.board.stacks[0][3]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][2]);
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][2]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][3]);
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][1]);
+			game.makeMove(game.player2.pool.stacks[1], game.board.stacks[2][0]);
+
+			const move = new Move(game.player1, game.player1.pool.stacks[1], game.board.stacks[0][2]);
+
+			expect(isValid(move)).toBe(true);
 		});
 
 		it('allows covering opponent pieces when they have three in a row', () => {
@@ -178,6 +215,20 @@ describe('Move', () => {
 			);
 
 			expect(isValid(move)).toBe(false);
+		});
+
+		it('prevents stacking on a piece of the same size (any owner)', () => {
+			game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][0]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][0]);
+			game.makeMove(game.player1.pool.stacks[1], game.board.stacks[0][1]);
+			game.makeMove(game.player2.pool.stacks[0], game.board.stacks[1][1]);
+
+			const move = new Move(game.player1, game.board.stacks[0][0], game.board.stacks[0][1]);
+
+			expect(move.isValid()).toEqual({
+				isValid: false,
+				errors: ['cannot stack on a piece of the same size']
+			});
 		});
 	});
 

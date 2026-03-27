@@ -1,4 +1,4 @@
-import { Stack, StackLocation } from "./Stack";
+import { Stack, StackLocation } from './Stack';
 const INDEXES = [0, 1, 2, 3];
 export class Board {
     constructor(game) {
@@ -34,13 +34,11 @@ export class Board {
             }), BoardLineType.diagonal),
             new BoardLine(INDEXES.map((i) => {
                 return this.stacks[3 - i][i];
-            }), BoardLineType.diagonal),
+            }), BoardLineType.diagonal)
         ];
     }
     lines() {
-        return this.horizontalLines()
-            .concat(this.verticalLines())
-            .concat(this.diagonalLines());
+        return this.horizontalLines().concat(this.verticalLines()).concat(this.diagonalLines());
     }
     winner() {
         const lines = this.lines();
@@ -66,9 +64,7 @@ export class BoardLine {
     }
     winningPlayer() {
         const topPlayers = this.stacks.map((stack) => { var _a; return (_a = stack.topPiece()) === null || _a === void 0 ? void 0 : _a.player; });
-        return topPlayers.every((player) => player === topPlayers[0])
-            ? topPlayers[0]
-            : undefined;
+        return topPlayers.every((player) => player === topPlayers[0]) ? topPlayers[0] : undefined;
     }
     coversOneOfThree(toStack) {
         const stackIndex = this.stacks.indexOf(toStack);

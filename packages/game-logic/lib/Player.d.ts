@@ -1,5 +1,5 @@
-import type { Game } from "./Game";
-import { Pool } from "./Pool";
+import type { Game } from './Game';
+import { Pool } from './Pool';
 export declare enum PlayerColor {
     White = 0,
     Black = 1

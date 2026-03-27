@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
 	import GameComponent from '../../../components/Game.svelte';
-	import type { StackProps } from '../../../components/Stack.svelte';
 	import GamePlayerHeader from '$lib/components/game/GamePlayerHeader.svelte';
 	import type { SerializedMove } from '@capstone/game-logic';
-	import { Game, PlayerColor } from '@capstone/game-logic';
+	import { Game } from '@capstone/game-logic';
 	import {
 		type GameServerEvent,
 		type GameSnapshot,
@@ -107,14 +106,7 @@
 		winnerPlayerId,
 		endedAt
 	});
-	let stacks = $derived.by<StackProps[]>(() =>
-		game.stacks.map((stack) => ({
-			pieces: stack.pieces.map((piece) => ({
-				size: piece.size,
-				color: piece.player.color === PlayerColor.Black ? PlayerColor.Black : PlayerColor.White
-			}))
-		}))
-	);
+	let movesSyncKey = $derived(JSON.stringify(getMoves(liveSnapshot)));
 
 	function sendMove(from: number, to: number) {
 		const poolIndex = Number(from);
@@ -311,8 +303,8 @@
 		>
 			<div class="mx-auto aspect-6/4 w-full max-w-5xl">
 				<GameComponent
-					{stacks}
-					{currentTurnIndex}
+					moves={getMoves(liveSnapshot)}
+					movesSyncKey={movesSyncKey}
 					{viewerPlayerIndex}
 					{canInteract}
 					onMove={handleBoardMove}

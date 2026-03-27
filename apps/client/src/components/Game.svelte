@@ -3,10 +3,11 @@
 	import Board from './Board.svelte';
 	import Pool from './Pool.svelte';
 	import type { StackProps } from './Stack.svelte';
+	import { Game, Move, PlayerColor, type SerializedMove } from '@capstone/game-logic';
 
 	export type GameProps = {
-		stacks: StackProps[];
-		currentTurnIndex?: 0 | 1;
+		moves: SerializedMove[];
+		movesSyncKey: string;
 		viewerPlayerIndex: 1 | 2;
 		canInteract?: boolean;
 		onMove?: (fromStackIndex: number, toStackIndex: number) => void | Promise<void>;
@@ -14,8 +15,8 @@
 	};
 
 	let {
-		stacks,
-		currentTurnIndex,
+		moves,
+		movesSyncKey,
 		viewerPlayerIndex,
 		canInteract = false,
 		onMove,
@@ -23,29 +24,25 @@
 	}: GameProps = $props();
 	let gameElement: HTMLDivElement | undefined;
 
-	function cloneStacks(nextStacks: StackProps[]): StackProps[] {
-		return nextStacks.map((stack) => ({
-			...stack,
-			pieces: stack.pieces.map((piece) => ({ ...piece }))
-		}));
-	}
+	let localMoves = $state<SerializedMove[]>([]);
 
-	function stacksKey(nextStacks: StackProps[]): string {
-		return nextStacks
-			.map(
-				(stack, stackIndex) =>
-					`${stackIndex}:${stack.pieces.map((piece) => `${piece.color}-${piece.size}`).join(',')}`
-			)
-			.join('|');
-	}
+	$effect.pre(() => {
+		void movesSyncKey;
+		localMoves = [...moves];
+	});
 
-	let localStacks = $state(cloneStacks(stacks));
-	let localCurrentTurnIndex = $state<0 | 1>(currentTurnIndex ?? 0);
-	let incomingStateKey = $derived(`${currentTurnIndex ?? 0}::${stacksKey(stacks)}`);
+	let localGame = $derived(Game.deserialize(localMoves));
 
-	// Stack indexes:
-	// 0-15 board, 16-18 left pool (player1), 19-21 right pool (player2)
-	let draggableColor = $derived(viewerPlayerIndex === 1 ? 1 : 0);
+	let localStacks = $derived.by<StackProps[]>(() =>
+		localGame.stacks.map((stack) => ({
+			pieces: stack.pieces.map((piece) => ({
+				size: piece.size,
+				color: piece.player.color
+			}))
+		}))
+	);
+
+	let draggableColor = $derived(viewerPlayerIndex === 1 ? PlayerColor.Black : PlayerColor.White);
 	let interactiveStacks = $derived.by<StackProps[]>(() =>
 		localStacks.map((stack, stackIndex) => {
 			const topPiece = stack.pieces.at(-1);
@@ -61,45 +58,32 @@
 	let player1PoolStacks = $derived(interactiveStacks.slice(16, 19));
 	let player2PoolStacks = $derived(interactiveStacks.slice(19, 22));
 	let viewerColor = $derived(viewerPlayerIndex === 1 ? 'Purple' : 'Gold');
+	let localCurrentTurnIndex = $derived(localGame.currentTurnIndex());
 	let isViewerTurn = $derived(
 		(viewerPlayerIndex === 1 && localCurrentTurnIndex === 0) ||
 			(viewerPlayerIndex === 2 && localCurrentTurnIndex === 1)
 	);
 	let dragBindingKey = $derived(
-		interactiveStacks
+		`${JSON.stringify(localMoves)}|${interactiveStacks
 			.map((stack) => `${stack.stackIndex}:${stack.isTopPieceDraggable ? '1' : '0'}`)
-			.join('|')
+			.join('|')}`
 	);
 	let currentTurnLabel = $derived(
 		`You are Player${viewerPlayerIndex} (${viewerColor}). It's ${isViewerTurn ? 'your' : "your opponent's"} turn.`
 	);
 
-	function applyOptimisticMove(fromStackIndex: number, toStackIndex: number) {
-		const fromStack = localStacks[fromStackIndex];
-		const toStack = localStacks[toStackIndex];
-		const movedPiece = fromStack?.pieces.at(-1);
-
-		if (!fromStack || !toStack || !movedPiece) return;
-
-		localStacks = localStacks.map((stack, stackIndex) => {
-			if (stackIndex === fromStackIndex) {
-				return {
-					...stack,
-					pieces: stack.pieces.slice(0, -1)
-				};
-			}
-
-			if (stackIndex === toStackIndex) {
-				return {
-					...stack,
-					pieces: [...stack.pieces, movedPiece]
-				};
-			}
-
-			return stack;
-		});
-
-		localCurrentTurnIndex = localCurrentTurnIndex === 0 ? 1 : 0;
+	function isMoveLegal(fromStackIndex: number, toStackIndex: number): boolean {
+		const g = Game.deserialize(localMoves);
+		if (
+			fromStackIndex < 0 ||
+			fromStackIndex >= g.stacks.length ||
+			toStackIndex < 0 ||
+			toStackIndex >= g.stacks.length
+		) {
+			return false;
+		}
+		return new Move(g.currentTurn, g.stacks[fromStackIndex], g.stacks[toStackIndex]).isValid()
+			.isValid;
 	}
 
 	function resetDraggedPiece(target: HTMLElement) {
@@ -109,14 +93,14 @@
 		target.classList.remove('stack__layer--dragging');
 	}
 
-	$effect(() => {
-		void incomingStateKey;
-		localStacks = cloneStacks(stacks);
-		localCurrentTurnIndex = currentTurnIndex ?? 0;
-	});
+	function clearDropHoverClasses(el: HTMLElement) {
+		el.classList.remove('stack--drop-hover-valid', 'stack--drop-hover-invalid');
+	}
 
 	$effect(() => {
-		if (!browser || !gameElement) return;
+		if (!browser) return;
+		const root = gameElement;
+		if (!root) return;
 		void dragBindingKey;
 
 		let cancelled = false;
@@ -126,7 +110,7 @@
 			if (cancelled) return;
 
 			const draggables = Array.from(
-				gameElement.querySelectorAll<HTMLElement>('.stack__layer--draggable')
+				root.querySelectorAll<HTMLElement>('.stack__layer--draggable')
 			).map((element) =>
 				interact(element).draggable({
 					listeners: {
@@ -149,34 +133,55 @@
 			);
 
 			const dropzones = Array.from(
-				gameElement.querySelectorAll<HTMLElement>('.stack--droppable')
+				root.querySelectorAll<HTMLElement>('.stack--droppable')
 			).map((element) =>
 				interact(element).dropzone({
 					accept: '.stack__layer--draggable',
 					overlap: 0.2,
 					ondragenter(event) {
-						(event.target as HTMLElement).classList.add('stack--drop-active');
+						const el = event.target as HTMLElement;
+						const toStackIndex = Number(el.dataset.stackIndex);
+						const draggableElement = event.relatedTarget as HTMLElement | null;
+						const fromStackIndex = Number(
+							draggableElement?.closest<HTMLElement>('.stack')?.dataset.stackIndex
+						);
+						clearDropHoverClasses(el);
+						if (
+							!Number.isInteger(fromStackIndex) ||
+							!Number.isInteger(toStackIndex) ||
+							fromStackIndex === toStackIndex
+						) {
+							return;
+						}
+						el.classList.add(
+							isMoveLegal(fromStackIndex, toStackIndex)
+								? 'stack--drop-hover-valid'
+								: 'stack--drop-hover-invalid'
+						);
 					},
 					ondragleave(event) {
-						(event.target as HTMLElement).classList.remove('stack--drop-active');
+						clearDropHoverClasses(event.target as HTMLElement);
 					},
 					ondrop(event) {
-						const toStackIndex = Number((event.target as HTMLElement).dataset.stackIndex);
+						const target = event.target as HTMLElement;
+						const toStackIndex = Number(target.dataset.stackIndex);
 						const draggableElement = event.relatedTarget as HTMLElement;
 						const fromStackIndex = Number(
 							draggableElement.closest<HTMLElement>('.stack')?.dataset.stackIndex
 						);
 
-						(event.target as HTMLElement).classList.remove('stack--drop-active');
+						clearDropHoverClasses(target);
 						resetDraggedPiece(draggableElement);
 
 						if (!Number.isInteger(fromStackIndex) || !Number.isInteger(toStackIndex)) return;
 						if (fromStackIndex === toStackIndex) return;
-						applyOptimisticMove(fromStackIndex, toStackIndex);
+						if (!isMoveLegal(fromStackIndex, toStackIndex)) return;
+
+						localMoves = [...localMoves, { from: fromStackIndex, to: toStackIndex }];
 						void onMove?.(fromStackIndex, toStackIndex);
 					},
 					ondropdeactivate(event) {
-						(event.target as HTMLElement).classList.remove('stack--drop-active');
+						clearDropHoverClasses(event.target as HTMLElement);
 					}
 				})
 			);

@@ -1,0 +1,20 @@
+# Dependencies (installed in the image)
+**/node_modules
+
+# Git and caches
+.git
+.turbo
+**/.svelte-kit
+
+# Build outputs (rebuilt in the image)
+apps/client/build
+packages/game-logic/lib
+
+# Local env (never bake secrets into image layers)
+**/.env
+**/.env.*
+!**/.env.example
+
+# IDE / OS
+.cursor
+**/.DS_Store

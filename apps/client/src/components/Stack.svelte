@@ -49,8 +49,12 @@
 		cursor: grabbing;
 	}
 
-	:global(.stack--drop-active) {
+	:global(.stack--drop-hover-valid) {
 		background: rgb(220 252 231 / 0.9);
+	}
+
+	:global(.stack--drop-hover-invalid) {
+		background: rgb(254 226 226 / 0.95);
 	}
 
 	:global(.stack__layer--dragging) {

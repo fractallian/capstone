@@ -1,4 +1,4 @@
-import { Pool } from "./Pool";
+import { Pool } from './Pool';
 export var PlayerColor;
 (function (PlayerColor) {
     PlayerColor[PlayerColor["White"] = 0] = "White";

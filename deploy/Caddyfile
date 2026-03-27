@@ -1,0 +1,10 @@
+# Reverse proxy for the SvelteKit app and Colyseus realtime server (two hostnames).
+# Set APP_DOMAIN and REALTIME_DOMAIN in the environment (see docker-compose.caddy.yml).
+
+{$APP_DOMAIN} {
+	reverse_proxy app:3000
+}
+
+{$REALTIME_DOMAIN} {
+	reverse_proxy app:2567
+}
