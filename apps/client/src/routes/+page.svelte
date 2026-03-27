@@ -16,6 +16,18 @@
 		data: {
 			colyseusUrl: string;
 			currentGameId: string | null;
+			inProgressGames: {
+				id: string;
+				status: 'in_progress';
+				startedAt: string;
+				endedAt: null;
+			}[];
+			completedGames: {
+				id: string;
+				status: 'completed';
+				startedAt: string;
+				endedAt: string | null;
+			}[];
 			githubLoginEnabled: boolean;
 			hasSession: boolean;
 			user: { id: string; name: string | null; email: string | null } | null;
@@ -53,6 +65,13 @@
 	let debugSyncSeq = 0;
 	let debugGame: Game | null = null;
 	let debugGameSeq = -1;
+
+	function formatDate(value: string) {
+		return new Intl.DateTimeFormat(undefined, {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		}).format(new Date(value));
+	}
 
 	function attachDebugHelpers(currentRoom: Room | null) {
 		if (!dev || typeof window === 'undefined') return;
@@ -216,7 +235,7 @@
 			if (parsed.data.type === 'game_started') {
 				matchmakingState = 'matched';
 				matchmakingMessage = null;
-				void goto('/game');
+				void goto(`/game/${parsed.data.gameId}`);
 				return;
 			}
 
@@ -248,54 +267,107 @@
 	}
 </script>
 
-<main class="flex min-h-screen flex-col items-center justify-center gap-8 px-4">
-	<div class="max-w-lg text-center">
-		<h1 class="text-3xl font-semibold tracking-tight text-slate-900">Welcome</h1>
-	</div>
+<main class="min-h-screen bg-slate-50 px-4 py-8">
+	<div class="mx-auto flex w-full max-w-6xl flex-col gap-8">
+		<div class="max-w-lg">
+			<h1 class="text-3xl font-semibold tracking-tight text-slate-900">Lobby</h1>
+		</div>
 
 	{#if data.hasSession}
-		<div class="flex flex-col items-center gap-3">
-			<p class="max-w-md text-center text-sm text-emerald-800">
+		<div class="flex flex-col gap-6">
+			<div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+				<p class="max-w-md text-sm text-emerald-800">
 				Logged in as
 				<strong>{data.user?.name ?? data.user?.email ?? 'your account'}</strong>.
 			</p>
-			<button
-				type="button"
-				class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-				disabled={isSigningOut}
-				onclick={signOut}
-			>
-				{isSigningOut ? 'Signing out…' : 'Log out'}
-			</button>
-
-			<div class="mt-2 flex flex-col items-center gap-2">
-				<button
-					type="button"
-					class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-					disabled={isStartingGame || matchmakingState === 'waiting'}
-					onclick={() => void startNewGame()}
-				>
-					{isStartingGame ? 'Starting...' : 'New Game'}
-				</button>
-
-				{#if data.currentGameId}
+				<div class="flex flex-wrap items-center gap-2">
 					<button
 						type="button"
 						class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
-						onclick={() => goto('/game')}
+						disabled={isStartingGame || matchmakingState === 'waiting'}
+						onclick={() => void startNewGame()}
 					>
-						Go to current game
+						{isStartingGame ? 'Starting...' : 'New Game'}
 					</button>
-				{/if}
+					{#if data.currentGameId}
+						<button
+							type="button"
+							class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+							onclick={() => goto(`/game/${data.currentGameId}`)}
+						>
+							Go to current game
+						</button>
+					{/if}
+					<button
+						type="button"
+						class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={isSigningOut}
+						onclick={signOut}
+					>
+						{isSigningOut ? 'Signing out…' : 'Log out'}
+					</button>
+				</div>
 			</div>
 
 			{#if matchmakingState === 'waiting'}
-				<p class="text-sm text-slate-700">waiting for another player</p>
+				<p class="text-sm text-slate-700">Waiting for another player...</p>
 			{/if}
 
 			{#if matchmakingMessage}
 				<p class="text-sm text-rose-700">{matchmakingMessage}</p>
 			{/if}
+
+			<div class="grid gap-6 lg:grid-cols-2">
+				<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+					<div class="flex items-center justify-between gap-3">
+						<h2 class="text-lg font-semibold text-slate-900">In Progress</h2>
+						<span class="text-sm text-slate-500">{data.inProgressGames.length}</span>
+					</div>
+
+					{#if data.inProgressGames.length > 0}
+						<div class="mt-4 flex flex-col gap-3">
+							{#each data.inProgressGames as gameRecord (gameRecord.id)}
+								<a
+									class="block rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+									href={`/game/${gameRecord.id}`}
+								>
+									<p class="text-sm font-medium text-slate-900">{gameRecord.id}</p>
+									<p class="mt-1 text-xs text-slate-600">
+										Started {formatDate(gameRecord.startedAt)}
+									</p>
+								</a>
+							{/each}
+						</div>
+					{:else}
+						<p class="mt-4 text-sm text-slate-600">No in-progress games yet.</p>
+					{/if}
+				</section>
+
+				<section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+					<div class="flex items-center justify-between gap-3">
+						<h2 class="text-lg font-semibold text-slate-900">Completed</h2>
+						<span class="text-sm text-slate-500">{data.completedGames.length}</span>
+					</div>
+
+					{#if data.completedGames.length > 0}
+						<div class="mt-4 flex flex-col gap-3">
+							{#each data.completedGames as gameRecord (gameRecord.id)}
+								<a
+									class="block rounded-lg border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
+									href={`/game/${gameRecord.id}`}
+								>
+									<p class="text-sm font-medium text-slate-900">{gameRecord.id}</p>
+									<p class="mt-1 text-xs text-slate-600">
+										Completed {formatDate(gameRecord.endedAt ?? gameRecord.startedAt)}
+									</p>
+								</a>
+							{/each}
+						</div>
+					{:else}
+						<p class="mt-4 text-sm text-slate-600">No completed games yet.</p>
+					{/if}
+				</section>
+			</div>
 		</div>
 	{:else if data.githubLoginEnabled}
 		<div class="flex flex-col items-center gap-3">
@@ -345,4 +417,5 @@
 		Realtime server:
 		<code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px]">{data.colyseusUrl}</code>
 	</p>
+	</div>
 </main>

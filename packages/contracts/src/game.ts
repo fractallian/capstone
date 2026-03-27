@@ -41,9 +41,16 @@ export const gameStartedEventSchema = z.object({
 	gameId: z.string().min(1)
 });
 
+export const gamePresenceUpdateEventSchema = z.object({
+	type: z.literal('presence_update'),
+	gameId: z.string().min(1),
+	connectedPlayerIndexes: z.array(z.union([z.literal(0), z.literal(1)]))
+});
+
 export const gameServerEventSchema = z.discriminatedUnion('type', [
 	gameWaitingEventSchema,
 	gameStartedEventSchema,
+	gamePresenceUpdateEventSchema,
 	gameStateSyncEventSchema,
 	gameInvalidMoveEventSchema
 ]);
@@ -55,6 +62,7 @@ export type MakeMoveCommand = z.infer<typeof makeMoveCommandSchema>;
 export type GameCommand = z.infer<typeof gameCommandSchema>;
 export type GameWaitingEvent = z.infer<typeof gameWaitingEventSchema>;
 export type GameStartedEvent = z.infer<typeof gameStartedEventSchema>;
+export type GamePresenceUpdateEvent = z.infer<typeof gamePresenceUpdateEventSchema>;
 export type GameStateSyncEvent = z.infer<typeof gameStateSyncEventSchema>;
 export type GameInvalidMoveEvent = z.infer<typeof gameInvalidMoveEventSchema>;
 export type GameServerEvent = z.infer<typeof gameServerEventSchema>;

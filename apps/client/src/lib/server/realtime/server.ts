@@ -43,7 +43,7 @@ export function ensureRealtimeServer(): Promise<void> {
 		const port = getColyseusPort();
 		const gameServer = new Server();
 
-		gameServer.define("capstone", CapstoneRoom);
+		gameServer.define("capstone", CapstoneRoom).filterBy(["gameId"]);
 		try {
 			await gameServer.listen(port);
 		} catch (error) {
