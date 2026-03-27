@@ -9,7 +9,9 @@ export const serializedMoveSchema = z.object({
 
 export const gameSnapshotSchema = z.object({
 	moves: z.array(serializedMoveSchema),
-	currentTurnIndex: z.union([z.literal(0), z.literal(1)])
+	currentTurnIndex: z.union([z.literal(0), z.literal(1)]),
+	winnerPlayerId: z.string().nullable().default(null),
+	endedAt: z.string().nullable().default(null)
 });
 
 export const makeMoveCommandSchema = z.object({
@@ -33,7 +35,8 @@ export const gameInvalidMoveEventSchema = z.object({
 });
 
 export const gameWaitingEventSchema = z.object({
-	type: z.literal('waiting_for_player')
+	type: z.literal('waiting_for_player'),
+	gameId: z.string().min(1)
 });
 
 export const gameStartedEventSchema = z.object({

@@ -1,9 +1,22 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import capstoneLogo from '$lib/assets/capstone-logo.svg';
 	import { dev } from '$app/environment';
+	import { getAuthClient } from '$lib/auth-client';
 
-	let { children } = $props();
+	let {
+		children,
+		data
+	}: {
+		children: import('svelte').Snippet;
+		data: {
+			hasSession: boolean;
+			user: { id: string; name: string | null; email: string | null; image: string | null } | null;
+		};
+	} = $props();
+
+	let isSigningOut = $state(false);
 
 	type CapstoneDebugStub = {
 		room: unknown;
@@ -20,7 +33,58 @@
 			w.__capstoneDebug = stub;
 		}
 	}
+
+	async function signOut() {
+		isSigningOut = true;
+		try {
+			await getAuthClient().signOut();
+			window.location.reload();
+		} finally {
+			isSigningOut = false;
+		}
+	}
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
-{@render children()}
+
+<div class="min-h-screen bg-slate-50">
+	<header class="border-b border-slate-200 bg-white">
+		<div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
+			<a href="/" class="inline-flex items-center" aria-label="Go to lobby">
+				<img src={capstoneLogo} alt="Capstone" class="h-16 w-auto" />
+			</a>
+			{#if data.hasSession && data.user}
+				<div class="flex items-center gap-3">
+					{#if data.user.image}
+						<img
+							src={data.user.image}
+							alt={data.user.name ?? data.user.email ?? 'User avatar'}
+							class="h-9 w-9 rounded-full object-cover"
+						/>
+					{:else}
+						<div
+							class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
+						>
+							{(data.user.name ?? data.user.email ?? 'U').slice(0, 2).toUpperCase()}
+						</div>
+					{/if}
+					<div class="text-right">
+						<p class="text-sm font-medium text-slate-900">
+							{data.user.name ?? data.user.email ?? 'Signed in'}
+						</p>
+						<button
+							type="button"
+							class="text-xs text-slate-600 underline-offset-2 hover:underline disabled:opacity-60"
+							disabled={isSigningOut}
+							onclick={signOut}
+						>
+							{isSigningOut ? 'Signing out…' : 'Log out'}
+						</button>
+					</div>
+				</div>
+			{/if}
+		</div>
+	</header>
+
+	{@render children()}
+</div>

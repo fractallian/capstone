@@ -25,7 +25,24 @@ export const load = async ({ locals, params, url }) => {
 		})
 	]);
 
-	if (!currentGame || !latestBoardState) {
+	// Allow loading a newly-created room before it has persisted a DB game row
+	// (first player waiting for opponent). Once second player joins, persistence
+	// fills in canonical game/board state and viewer seat info.
+	if (!currentGame) {
+		if (locals.currentGameId !== requestedGameId) {
+			throw error(404, 'Game not found');
+		}
+
+		return {
+			colyseusUrl: getColyseusPublicUrl(url),
+			gameId: requestedGameId,
+			gameState: latestBoardState?.board ?? null,
+			viewerPlayerIndex: 1 as const,
+			viewerUserId: locals.user.id
+		};
+	}
+
+	if (!latestBoardState) {
 		throw error(404, 'Game not found');
 	}
 

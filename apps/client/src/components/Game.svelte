@@ -197,7 +197,9 @@
 
 <div class={`game ${className ?? ''}`.trim()} bind:this={gameElement}>
 	<div class="game__status">
-		<span class="game__turn">{currentTurnLabel}</span>
+		<span class={`game__turn ${isViewerTurn ? 'game__turn--active' : ''}`.trim()}>
+			{currentTurnLabel}
+		</span>
 	</div>
 
 	<div class="game__pool game__pool--left">
@@ -240,6 +242,10 @@
 		font-weight: 600;
 		line-height: 1.25rem;
 		padding: 0.375rem 0.75rem;
+	}
+
+	.game__turn--active {
+		background: rgb(220 252 231);
 	}
 
 	.game__board {

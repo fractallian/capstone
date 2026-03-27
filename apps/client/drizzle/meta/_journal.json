@@ -8,6 +8,13 @@
       "when": 1774549078923,
       "tag": "0000_lyrical_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774574269797,
+      "tag": "0001_redundant_kronos",
+      "breakpoints": true
     }
   ]
 }

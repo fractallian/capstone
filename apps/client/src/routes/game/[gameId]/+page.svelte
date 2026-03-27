@@ -16,6 +16,8 @@
 		| {
 				moves?: SerializedMove[];
 				currentTurnIndex?: 0 | 1;
+				winnerPlayerId?: string | null;
+				endedAt?: string | null;
 		  }
 		| SerializedMove[]
 		| null;
@@ -52,9 +54,9 @@
 	};
 
 	let room: Room | null = $state(null);
-	let roomStatus = $state<'connecting' | 'opponent_connected' | 'waiting_for_opponent' | 'disconnected'>(
-		'connecting'
-	);
+	let roomStatus = $state<
+		'connecting' | 'opponent_connected' | 'waiting_for_opponent' | 'disconnected'
+	>('connecting');
 	let liveSnapshot = $state<GameStateLike>(data.gameState);
 	let gameMessage = $state<string | null>(null);
 	let debugLastEvent: GameServerEvent | null = $state(null);
@@ -72,16 +74,32 @@
 		return gameState.currentTurnIndex === 1 ? 1 : 0;
 	}
 
+	function getWinnerPlayerId(gameState: GameStateLike): string | null {
+		if (!gameState || Array.isArray(gameState)) return null;
+		return gameState.winnerPlayerId ?? null;
+	}
+
+	function getEndedAt(gameState: GameStateLike): string | null {
+		if (!gameState || Array.isArray(gameState)) return null;
+		return gameState.endedAt ?? null;
+	}
+
 	let game = $derived(Game.deserialize(getMoves(liveSnapshot)));
 	let currentTurnIndex = $derived(getCurrentTurnIndex(liveSnapshot));
+	let winnerPlayerId = $derived(getWinnerPlayerId(liveSnapshot));
+	let endedAt = $derived(getEndedAt(liveSnapshot));
+	let isGameEnded = $derived(Boolean(endedAt));
 	let canInteract = $derived(
-		roomStatus === 'opponent_connected' &&
+		!isGameEnded &&
+			roomStatus === 'opponent_connected' &&
 			((data.viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
 				(data.viewerPlayerIndex === 2 && currentTurnIndex === 1))
 	);
 	let debugSnapshot = $derived<GameSnapshot>({
 		moves: getMoves(liveSnapshot),
-		currentTurnIndex
+		currentTurnIndex,
+		winnerPlayerId,
+		endedAt
 	});
 	let stacks = $derived.by<StackProps[]>(() =>
 		game.stacks.map((stack) => ({
@@ -158,6 +176,7 @@
 			sendMove,
 			awaitNextSync: async (timeoutMs = 5000) => {
 				if (!room) throw new Error('No room connected.');
+				const currentRoom = room;
 				const startSeq = debugSyncSeq;
 				return await new Promise<GameSnapshot>((resolve, reject) => {
 					const timeoutId = setTimeout(() => {
@@ -165,7 +184,7 @@
 						reject(new Error('Timed out waiting for state_sync.'));
 					}, timeoutMs);
 
-					const unsub = room.onMessage('event', (payload: unknown) => {
+					const unsub = currentRoom.onMessage('event', (payload: unknown) => {
 						const parsed = gameServerEventSchema.safeParse(payload);
 						if (!parsed.success || parsed.data.type !== 'state_sync') return;
 						if (debugSyncSeq <= startSeq) return;
@@ -230,7 +249,12 @@
 
 				if (parsed.data.type === 'state_sync') {
 					liveSnapshot = parsed.data.snapshot;
-					gameMessage = null;
+					gameMessage =
+						parsed.data.snapshot.endedAt && parsed.data.snapshot.winnerPlayerId
+							? parsed.data.snapshot.winnerPlayerId === data.viewerUserId
+								? 'Game over: you won.'
+								: 'Game over: you lost.'
+							: null;
 					debugSyncSeq += 1;
 					return;
 				}

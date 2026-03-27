@@ -17,10 +17,15 @@ export const game = pgTable(
 		player2Id: text('player2_id')
 			.notNull()
 			.references(() => user.id, { onDelete: 'restrict' }),
+		winnerPlayerId: text('winner_player_id').references(() => user.id, { onDelete: 'restrict' }),
 		startedAt: timestamp('started_at').notNull(),
 		endedAt: timestamp('ended_at')
 	},
-	(table) => [index('game_player1_id_idx').on(table.player1Id), index('game_player2_id_idx').on(table.player2Id)]
+	(table) => [
+		index('game_player1_id_idx').on(table.player1Id),
+		index('game_player2_id_idx').on(table.player2Id),
+		index('game_winner_player_id_idx').on(table.winnerPlayerId)
+	]
 );
 
 export const boardState = pgTable(

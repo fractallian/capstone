@@ -1,4 +1,5 @@
 import { gameCommandSchema, gameSnapshotSchema, type GameSnapshot } from '@capstone/contracts';
+import { eq } from 'drizzle-orm';
 import { Room, type Client } from 'colyseus';
 import { Game, InvalidMoveError } from '@capstone/game-logic';
 import { randomUUID } from 'node:crypto';
@@ -8,14 +9,7 @@ import { clearCurrentGameForUser, setCurrentGameForUser } from './server';
 
 interface JoinOptions {
 	userId?: string;
-	gameId?: string;
-}
-
-function buildSnapshot(game: Game): GameSnapshot {
-	return {
-		moves: game.serialize(),
-		currentTurnIndex: game.currentTurnIndex()
-	};
+	gameId?: `${string}-${string}-${string}-${string}-${string}`;
 }
 
 export class CapstoneRoom extends Room {
@@ -23,9 +17,21 @@ export class CapstoneRoom extends Room {
 	private game = new Game();
 	private gameId = randomUUID();
 	private gamePersisted = false;
+	private gameEnded = false;
+	private winnerPlayerId: string | null = null;
+	private endedAt: Date | null = null;
 	private userIdBySessionId = new Map<string, string>();
 	private playerIndexBySessionId = new Map<string, 0 | 1>();
 	private playerUserIdByIndex = new Map<0 | 1, string>();
+
+	private buildSnapshot(): GameSnapshot {
+		return {
+			moves: this.game.serialize(),
+			currentTurnIndex: this.game.currentTurnIndex(),
+			winnerPlayerId: this.winnerPlayerId,
+			endedAt: this.endedAt ? this.endedAt.toISOString() : null
+		};
+	}
 
 	private async persistSnapshot(snapshot: GameSnapshot) {
 		await db.insert(boardState).values({
@@ -42,7 +48,7 @@ export class CapstoneRoom extends Room {
 		});
 
 		const parsed = gameSnapshotSchema.safeParse(latestBoardState?.board);
-		return parsed.success ? parsed.data : buildSnapshot(this.game);
+		return parsed.success ? parsed.data : this.buildSnapshot();
 	}
 
 	private async ensurePersistedGame() {
@@ -75,7 +81,7 @@ export class CapstoneRoom extends Room {
 			startedAt: new Date()
 		});
 
-		await this.persistSnapshot(buildSnapshot(this.game));
+		await this.persistSnapshot(this.buildSnapshot());
 		this.gamePersisted = true;
 	}
 
@@ -109,6 +115,44 @@ export class CapstoneRoom extends Room {
 		this.playerUserIdByIndex.set(0, persistedGame.player1Id);
 		this.playerUserIdByIndex.set(1, persistedGame.player2Id);
 		this.gamePersisted = true;
+		this.gameEnded = Boolean(persistedGame.endedAt) || Boolean(this.game.board.winner());
+		this.winnerPlayerId = persistedGame.winnerPlayerId ?? null;
+		this.endedAt = persistedGame.endedAt ?? null;
+	}
+
+	private async finishGameIfWon(): Promise<void> {
+		const winner = this.game.board.winner();
+		if (!winner) return;
+
+		const winnerPlayerId =
+			winner === this.game.player1
+				? this.playerUserIdByIndex.get(0)
+				: this.playerUserIdByIndex.get(1);
+
+		if (!winnerPlayerId) {
+			throw new Error('Unable to resolve winner player id.');
+		}
+
+		this.gameEnded = true;
+		this.winnerPlayerId = winnerPlayerId;
+		this.endedAt = new Date();
+
+		await db
+			.update(game)
+			.set({
+				endedAt: this.endedAt,
+				winnerPlayerId
+			})
+			.where(eq(game.id, this.gameId));
+
+		// Prevent matchmaking from placing players back into completed rooms.
+		this.lock();
+
+		// Completed games should no longer be treated as each user's "current game".
+		const player1Id = this.playerUserIdByIndex.get(0);
+		const player2Id = this.playerUserIdByIndex.get(1);
+		if (player1Id) clearCurrentGameForUser(player1Id);
+		if (player2Id) clearCurrentGameForUser(player2Id);
 	}
 
 	async onCreate(options?: JoinOptions) {
@@ -150,6 +194,15 @@ export class CapstoneRoom extends Room {
 					return;
 				}
 
+				if (this.gameEnded) {
+					client.send('event', {
+						type: 'invalid_move',
+						message: 'This game has already ended.',
+						errors: ['game ended']
+					});
+					return;
+				}
+
 				const playerIndex = this.playerIndexBySessionId.get(client.sessionId);
 				if (playerIndex === undefined) {
 					client.send('event', {
@@ -171,7 +224,8 @@ export class CapstoneRoom extends Room {
 				}
 
 				this.game.makeMove(this.game.stacks[command.from], this.game.stacks[command.to]);
-				await this.persistSnapshot(buildSnapshot(this.game));
+				await this.finishGameIfWon();
+				await this.persistSnapshot(this.buildSnapshot());
 
 				this.broadcast('event', {
 					type: 'state_sync',
@@ -191,6 +245,18 @@ export class CapstoneRoom extends Room {
 	}
 
 	async onJoin(client: Client, options: JoinOptions) {
+		if (this.gameEnded && !options.gameId) {
+			// Keep ended rooms out of future lobby matchmaking.
+			this.lock();
+			client.send('event', {
+				type: 'invalid_move',
+				message: 'Game has already ended.',
+				errors: ['game ended']
+			});
+			client.leave();
+			return;
+		}
+
 		if (options.userId) {
 			this.userIdBySessionId.set(client.sessionId, options.userId);
 		}
@@ -242,12 +308,13 @@ export class CapstoneRoom extends Room {
 
 		if (!this.gamePersisted && this.playerIndexBySessionId.size < this.maxClients) {
 			client.send('event', {
-				type: 'waiting_for_player'
+				type: 'waiting_for_player',
+				gameId: this.gameId
 			});
 			client.send('event', {
 				type: 'state_sync',
 				gameId: this.gameId,
-				snapshot: buildSnapshot(this.game)
+				snapshot: this.buildSnapshot()
 			});
 			this.broadcastPresence();
 			return;

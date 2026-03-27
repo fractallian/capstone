@@ -55,5 +55,6 @@
 
 	:global(.stack__layer--dragging) {
 		opacity: 0.85;
+		z-index: 999 !important;
 	}
 </style>
