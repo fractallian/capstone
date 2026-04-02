@@ -50,6 +50,7 @@ export const load = async ({ locals, params, url }) => {
 		colyseusUrl: getColyseusPublicUrl(url),
 		gameId: requestedGameId,
 		gameState: latestBoardState.board,
+		vsAi: Boolean(currentGame.vsAi),
 		viewerPlayerIndex: currentGame.player1Id === locals.user.id ? 1 : 2,
 		viewerUserId: locals.user.id,
 		player1: player1 ?? {
@@ -57,6 +58,8 @@ export const load = async ({ locals, params, url }) => {
 			name: null,
 			image: null
 		},
-		player2: player2 ?? null
+		player2: currentGame.vsAi
+			? { id: null, name: 'AI opponent', image: null }
+			: (player2 ?? null)
 	};
 };

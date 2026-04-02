@@ -47,6 +47,7 @@
 				endedAt: string | null;
 			}[];
 			githubLoginEnabled: boolean;
+			aiOpponentEnabled: boolean;
 			hasSession: boolean;
 			user: { id: string; name: string | null; email: string | null } | null;
 		};
@@ -297,6 +298,29 @@
 		}
 	}
 
+	async function startNewAiGame() {
+		if (!data.user) return;
+		isStartingGame = true;
+		matchmakingState = 'idle';
+		matchmakingMessage = null;
+		try {
+			const client = new Client(data.colyseusUrl);
+			room = await client.create('capstone', {
+				userId: data.user.id,
+				gameId: crypto.randomUUID(),
+				needsOpponent: false,
+				vsAi: true
+			});
+			wireRoom(room, { navigateOnWaiting: true });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			matchmakingState = 'failed';
+			matchmakingMessage = message || 'Unable to start AI game right now.';
+		} finally {
+			isStartingGame = false;
+		}
+	}
+
 	onMount(() => {
 		if (!data.hasSession) return;
 
@@ -332,14 +356,26 @@
 								></span>
 							</div>
 						{:else}
-							<button
-								type="button"
-								class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
-								disabled={matchmakingState === 'waiting'}
-								onclick={() => void startNewGame()}
-							>
-								New Game
-							</button>
+							<div class="flex flex-wrap items-center gap-2">
+								<button
+									type="button"
+									class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+									disabled={matchmakingState === 'waiting'}
+									onclick={() => void startNewGame()}
+								>
+									New Game
+								</button>
+								{#if data.aiOpponentEnabled}
+									<button
+										type="button"
+										class="inline-flex items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-100"
+										disabled={matchmakingState === 'waiting'}
+										onclick={() => void startNewAiGame()}
+									>
+										Play vs AI
+									</button>
+								{/if}
+							</div>
 						{/if}
 					</div>
 				</div>

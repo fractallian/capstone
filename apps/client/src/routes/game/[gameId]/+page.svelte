@@ -24,6 +24,7 @@
 				moves?: SerializedMove[];
 				currentTurnIndex?: 0 | 1;
 				winnerPlayerId?: string | null;
+				winnerSeatIndex?: 0 | 1 | null;
 				endedAt?: string | null;
 		  }
 		| SerializedMove[]
@@ -36,6 +37,7 @@
 			colyseusUrl: string;
 			gameId: string;
 			gameState: GameStateLike;
+			vsAi: boolean;
 			viewerPlayerIndex: 1 | 2;
 			viewerUserId: string;
 			player1: { id: string | null; name: string | null; image: string | null } | null;
@@ -45,6 +47,7 @@
 	let colyseusUrl = $derived(data.colyseusUrl);
 	let gameId = $derived(data.gameId);
 	let gameState = $derived(data.gameState);
+	let vsAi = $derived(data.vsAi);
 	let viewerPlayerIndex = $derived(data.viewerPlayerIndex);
 	let viewerUserId = $derived(data.viewerUserId);
 	let player1 = $derived(data.player1);
@@ -81,6 +84,12 @@
 		return gameState.endedAt ?? null;
 	}
 
+	function getWinnerSeatIndex(gameState: GameStateLike): 0 | 1 | null {
+		if (!gameState || Array.isArray(gameState)) return null;
+		const seat = gameState.winnerSeatIndex;
+		return seat === 0 || seat === 1 ? seat : null;
+	}
+
 	function getPlayerLabel(
 		player: { id: string | null; name: string | null; image: string | null } | null
 	) {
@@ -93,10 +102,20 @@
 	let game = $derived(Game.deserialize(getMoves(liveSnapshot)));
 	let currentTurnIndex = $derived(getCurrentTurnIndex(liveSnapshot));
 	let winnerPlayerId = $derived(getWinnerPlayerId(liveSnapshot));
+	let winnerSeatIndex = $derived(getWinnerSeatIndex(liveSnapshot));
 	let endedAt = $derived(getEndedAt(liveSnapshot));
 	let isGameEnded = $derived(Boolean(endedAt));
-	let isViewerWinner = $derived(Boolean(isGameEnded && winnerPlayerId === viewerUserId));
-	let showEndBanner = $derived(Boolean(isGameEnded && winnerPlayerId));
+	let isViewerWinner = $derived(
+		Boolean(
+			isGameEnded &&
+				(winnerSeatIndex !== null
+					? winnerSeatIndex === viewerPlayerIndex - 1
+					: winnerPlayerId === viewerUserId)
+		)
+	);
+	let showEndBanner = $derived(
+		Boolean(isGameEnded && (winnerSeatIndex !== null || Boolean(winnerPlayerId)))
+	);
 	let canInteract = $derived(
 		!isGameEnded &&
 			((viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
@@ -106,6 +125,7 @@
 		moves: getMoves(liveSnapshot),
 		currentTurnIndex,
 		winnerPlayerId,
+		winnerSeatIndex: winnerSeatIndex === null ? undefined : winnerSeatIndex,
 		endedAt
 	});
 	let movesSyncKey = $derived(JSON.stringify(getMoves(liveSnapshot)));
@@ -233,6 +253,7 @@
 				colyseusUrl,
 				userId: viewerUserId,
 				gameId,
+				vsAi,
 				onLeave: () => {
 					if (activeRoom === joined) {
 						activeRoom = null;

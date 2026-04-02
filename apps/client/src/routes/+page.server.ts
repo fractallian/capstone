@@ -5,12 +5,13 @@ import { boardState, game, user } from '$lib/server/db/schema';
 import { getColyseusPublicUrl } from '$lib/server/realtime/server';
 
 export const load = async ({ locals, url }) => {
-	const lobbyGames = locals.user
+		const lobbyGames = locals.user
 		? await db
 				.select({
 					id: game.id,
 					player1Id: game.player1Id,
 					player2Id: game.player2Id,
+					vsAi: game.vsAi,
 					winnerPlayerId: game.winnerPlayerId,
 					startedAt: game.startedAt,
 					endedAt: game.endedAt
@@ -49,8 +50,12 @@ export const load = async ({ locals, url }) => {
 		])
 	);
 
-	const waitingGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id);
-	const inProgressGameRows = lobbyGames.filter((gameRecord) => !gameRecord.endedAt && !!gameRecord.player2Id);
+	const waitingGameRows = lobbyGames.filter(
+		(gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id && !gameRecord.vsAi
+	);
+	const inProgressGameRows = lobbyGames.filter(
+		(gameRecord) => !gameRecord.endedAt && (!!gameRecord.player2Id || gameRecord.vsAi)
+	);
 	const inProgressGameIds = inProgressGameRows.map((gameRecord) => gameRecord.id);
 	const inProgressBoardRows =
 		inProgressGameIds.length > 0
@@ -84,7 +89,11 @@ export const load = async ({ locals, url }) => {
 
 		return {
 			id: gameRecord.id,
-			opponent: opponentId ? opponentById.get(opponentId) ?? null : null,
+			opponent: gameRecord.vsAi
+				? { id: 'ai', name: 'AI opponent', image: null as string | null }
+				: opponentId
+					? (opponentById.get(opponentId) ?? null)
+					: null,
 			status: 'in_progress' as const,
 			startedAt: gameRecord.startedAt.toISOString(),
 			endedAt: null,
@@ -104,6 +113,9 @@ export const load = async ({ locals, url }) => {
 		.map((gameRecord) => ({
 			id: gameRecord.id,
 			opponent: (() => {
+				if (gameRecord.vsAi) {
+					return { id: 'ai', name: 'AI opponent', image: null as string | null };
+				}
 				const opponentId =
 					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
 				return opponentId ? opponentById.get(opponentId) ?? null : null;
@@ -123,6 +135,7 @@ export const load = async ({ locals, url }) => {
 
 	return {
 		githubLoginEnabled: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+		aiOpponentEnabled: env.AI_OPPONENT_ENABLED === 'true',
 		colyseusUrl: getColyseusPublicUrl(url),
 		hasSession: Boolean(locals.session),
 		user: locals.user

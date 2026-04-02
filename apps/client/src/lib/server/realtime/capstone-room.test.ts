@@ -68,14 +68,16 @@ function createClient(sessionId: string): TestClient {
 	};
 }
 
-function createRoom() {
-	const room = new CapstoneRoom() as CapstoneRoom & {
-		clients: TestClient[];
-		setMetadata: ReturnType<typeof vi.fn>;
-		broadcast: ReturnType<typeof vi.fn>;
-		onMessage: ReturnType<typeof vi.fn>;
-		lock: ReturnType<typeof vi.fn>;
-	};
+type HarnessedRoom = Omit<CapstoneRoom, 'clients' | 'broadcast' | 'onMessage' | 'setMetadata' | 'lock'> & {
+	clients: TestClient[];
+	setMetadata: ReturnType<typeof vi.fn>;
+	broadcast: ReturnType<typeof vi.fn>;
+	onMessage: ReturnType<typeof vi.fn>;
+	lock: ReturnType<typeof vi.fn>;
+};
+
+function createRoom(): HarnessedRoom {
+	const room = new CapstoneRoom() as unknown as HarnessedRoom;
 	room.clients = [];
 	room.setMetadata = vi.fn(async () => undefined);
 	room.broadcast = vi.fn();
@@ -142,6 +144,35 @@ describe('CapstoneRoom onJoin lifecycle', () => {
 		expect(room.broadcast).toHaveBeenCalledWith('event', {
 			type: 'game_started',
 			gameId: '11111111-1111-1111-1111-111111111111'
+		});
+	});
+
+	it('vsAi first join starts immediately and persists vs_ai', async () => {
+		const room = createRoom();
+		await room.onCreate({
+			gameId: '22222222-2222-2222-2222-222222222222',
+			vsAi: true
+		});
+
+		const client1 = createClient('s1');
+		room.clients = [client1];
+		await room.onJoin(client1 as never, { userId: 'u1' });
+
+		expect(client1.send).not.toHaveBeenCalledWith(
+			'event',
+			expect.objectContaining({ type: 'waiting_for_player' })
+		);
+		expect(room.broadcast).toHaveBeenCalledWith('event', {
+			type: 'game_started',
+			gameId: '22222222-2222-2222-2222-222222222222'
+		});
+		const firstInsertArgs = insertValuesMock.mock.calls[0] as unknown as
+			| [{ vsAi?: boolean; player1Id?: string }]
+			| undefined;
+		const gameRow = firstInsertArgs?.[0];
+		expect(gameRow).toMatchObject({
+			vsAi: true,
+			player1Id: 'u1'
 		});
 	});
 });

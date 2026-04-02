@@ -13,6 +13,5 @@ export declare class Stack {
     isEmpty(): boolean;
     topPiece(): Piece | undefined;
     addPiece(piece: Piece): boolean;
-    /** Only a strictly larger piece may be placed on top; same size is not allowed. */
     canAddPiece(piece: Piece): boolean;
 }

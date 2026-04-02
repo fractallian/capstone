@@ -11,6 +11,8 @@ export const gameSnapshotSchema = z.object({
 	moves: z.array(serializedMoveSchema),
 	currentTurnIndex: z.union([z.literal(0), z.literal(1)]),
 	winnerPlayerId: z.string().nullable().default(null),
+	/** Present when the game ended; identifies the winning seat even if that seat has no user id (e.g. AI). */
+	winnerSeatIndex: z.union([z.literal(0), z.literal(1)]).nullable().optional(),
 	endedAt: z.string().nullable().default(null)
 });
 

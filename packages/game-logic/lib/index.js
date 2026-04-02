@@ -1,6 +1,8 @@
 // Capstone game library exports
 export { Board, BoardLine, BoardLineType } from './Board';
 export { Game } from './Game';
+export { describeGameStateForPrompt } from './game-state-prompt';
+export { listLegalMoves } from './legal-moves';
 export { InvalidMoveError, Move } from './Move';
 export { Piece, PieceSize } from './Piece';
 export { Player, PlayerColor } from './Player';

@@ -1,0 +1,24 @@
+{
+	"name": "@capstone/virtual-opponent",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Heuristic Capstone move provider (see PRD.md)",
+	"type": "module",
+	"main": "lib/index.js",
+	"types": "lib/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"check": "tsc --noEmit",
+		"test": "vitest",
+		"test:run": "vitest run",
+		"lint": "prettier --check \"src/**/*.{ts,json}\" \"*.{ts,json}\""
+	},
+	"dependencies": {
+		"@capstone/game-logic": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.4"
+	},
+	"license": "ISC"
+}

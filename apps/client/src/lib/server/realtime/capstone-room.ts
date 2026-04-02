@@ -1,8 +1,9 @@
 import { gameCommandSchema, gameSnapshotSchema, type GameSnapshot } from '@capstone/contracts';
 import { eq } from 'drizzle-orm';
 import { Room, type Client } from 'colyseus';
-import { Game, InvalidMoveError } from '@capstone/game-logic';
+import { Game, InvalidMoveError, listLegalMoves, type SerializedMove } from '@capstone/game-logic';
 import { randomUUID } from 'node:crypto';
+import { getGameMoveProvider } from '$lib/server/ai';
 import { db } from '$lib/server/db';
 import { boardState, game } from '$lib/server/db/schema';
 import { clearCurrentGameForUser, setCurrentGameForUser } from './server';
@@ -11,6 +12,7 @@ interface JoinOptions {
 	userId?: string;
 	gameId?: `${string}-${string}-${string}-${string}-${string}`;
 	needsOpponent?: boolean;
+	vsAi?: boolean;
 }
 
 export class CapstoneRoom extends Room {
@@ -20,7 +22,10 @@ export class CapstoneRoom extends Room {
 	private gamePersisted = false;
 	private gameEnded = false;
 	private winnerPlayerId: string | null = null;
+	private winnerSeatIndex: 0 | 1 | null = null;
 	private endedAt: Date | null = null;
+	private vsAi = false;
+	private joinOptionsVsAi = false;
 	private userIdBySessionId = new Map<string, string>();
 	private playerIndexBySessionId = new Map<string, 0 | 1>();
 	private playerUserIdByIndex = new Map<0 | 1, string>();
@@ -30,6 +35,7 @@ export class CapstoneRoom extends Room {
 			moves: this.game.serialize(),
 			currentTurnIndex: this.game.currentTurnIndex(),
 			winnerPlayerId: this.winnerPlayerId,
+			winnerSeatIndex: this.gameEnded ? this.winnerSeatIndex : null,
 			endedAt: this.endedAt ? this.endedAt.toISOString() : null
 		};
 	}
@@ -80,12 +86,13 @@ export class CapstoneRoom extends Room {
 			id: this.gameId,
 			player1Id,
 			player2Id,
+			vsAi: this.vsAi,
 			startedAt: new Date()
 		});
 
 		await this.persistSnapshot(this.buildSnapshot());
 		this.gamePersisted = true;
-		await this.setMetadata({ gameId: this.gameId, needsOpponent: !player2Id });
+		await this.setMetadata({ gameId: this.gameId, needsOpponent: !player2Id && !this.vsAi });
 	}
 
 	private async assignSecondPlayerIfNeeded() {
@@ -119,10 +126,13 @@ export class CapstoneRoom extends Room {
 	}
 
 	private broadcastPresence() {
+		const connectedPlayerIndexes = this.vsAi
+			? ([0, 1] as Array<0 | 1>)
+			: this.getConnectedPlayerIndexes();
 		this.broadcast('event', {
 			type: 'presence_update',
 			gameId: this.gameId,
-			connectedPlayerIndexes: this.getConnectedPlayerIndexes()
+			connectedPlayerIndexes
 		});
 	}
 
@@ -132,6 +142,7 @@ export class CapstoneRoom extends Room {
 		});
 
 		if (!persistedGame) {
+			this.vsAi = this.joinOptionsVsAi;
 			return;
 		}
 
@@ -146,26 +157,40 @@ export class CapstoneRoom extends Room {
 			this.playerUserIdByIndex.set(1, persistedGame.player2Id);
 		}
 		this.gamePersisted = true;
+		this.vsAi = Boolean(persistedGame.vsAi);
 		this.gameEnded = Boolean(persistedGame.endedAt) || Boolean(this.game.board.winner());
 		this.winnerPlayerId = persistedGame.winnerPlayerId ?? null;
 		this.endedAt = persistedGame.endedAt ?? null;
-		await this.setMetadata({ gameId: this.gameId, needsOpponent: !persistedGame.player2Id });
+		this.winnerSeatIndex = null;
+		if (this.gameEnded) {
+			const fromSnapshot = latestSnapshot.winnerSeatIndex;
+			if (fromSnapshot === 0 || fromSnapshot === 1) {
+				this.winnerSeatIndex = fromSnapshot;
+			} else if (this.winnerPlayerId) {
+				if (this.winnerPlayerId === persistedGame.player1Id) this.winnerSeatIndex = 0;
+				else if (
+					persistedGame.player2Id &&
+					this.winnerPlayerId === persistedGame.player2Id
+				) {
+					this.winnerSeatIndex = 1;
+				}
+			}
+		}
+		await this.setMetadata({
+			gameId: this.gameId,
+			needsOpponent: !persistedGame.player2Id && !this.vsAi
+		});
 	}
 
 	private async finishGameIfWon(): Promise<void> {
 		const winner = this.game.board.winner();
 		if (!winner) return;
 
-		const winnerPlayerId =
-			winner === this.game.player1
-				? this.playerUserIdByIndex.get(0)
-				: this.playerUserIdByIndex.get(1);
-
-		if (!winnerPlayerId) {
-			throw new Error('Unable to resolve winner player id.');
-		}
+		const winnerSeat: 0 | 1 = winner === this.game.player1 ? 0 : 1;
+		const winnerPlayerId = this.playerUserIdByIndex.get(winnerSeat) ?? null;
 
 		this.gameEnded = true;
+		this.winnerSeatIndex = winnerSeat;
 		this.winnerPlayerId = winnerPlayerId;
 		this.endedAt = new Date();
 
@@ -187,13 +212,69 @@ export class CapstoneRoom extends Room {
 		if (player2Id) clearCurrentGameForUser(player2Id);
 	}
 
+	private pickRandomMove<T extends { from: number; to: number }>(legalMoves: T[]): T {
+		return legalMoves[Math.floor(Math.random() * legalMoves.length)]!;
+	}
+
+	private async applyAiOpponentTurn(): Promise<void> {
+		if (!this.vsAi || this.gameEnded) return;
+		const aiSeat: 0 | 1 = 1;
+		if (this.game.currentTurnIndex() !== aiSeat) return;
+
+		const legalMoves = listLegalMoves(this.game);
+		if (legalMoves.length === 0) return;
+
+		let chosen = this.pickRandomMove(legalMoves);
+		const provider = getGameMoveProvider();
+		if (provider) {
+			try {
+				chosen = await provider.chooseMove({
+					moves: this.game.serialize(),
+					currentTurnIndex: this.game.currentTurnIndex(),
+					legalMoves
+				});
+			} catch (err) {
+				console.warn(
+					'[capstone:openai-move] provider failed; falling back to random legal move:',
+					err
+				);
+				chosen = this.pickRandomMove(legalMoves);
+			}
+		}
+
+		const stillLegal = legalMoves.some(
+			(m: SerializedMove) => m.from === chosen.from && m.to === chosen.to
+		);
+		if (!stillLegal) {
+			chosen = legalMoves[0]!;
+		}
+
+		this.game.makeMove(this.game.stacks[chosen.from], this.game.stacks[chosen.to]);
+		await this.finishGameIfWon();
+		await this.persistSnapshot(this.buildSnapshot());
+
+		this.broadcast('event', {
+			type: 'state_sync',
+			gameId: this.gameId,
+			snapshot: await this.loadLatestSnapshot()
+		});
+	}
+
 	async onCreate(options?: JoinOptions) {
 		if (options?.gameId) {
 			this.gameId = options.gameId;
 		}
+		this.joinOptionsVsAi = options?.vsAi === true;
 
-		await this.setMetadata({ gameId: options?.gameId ?? null, needsOpponent: true });
+		await this.setMetadata({
+			gameId: options?.gameId ?? null,
+			needsOpponent: options?.vsAi ? false : true
+		});
 		await this.initializePersistedGame();
+
+		if (this.vsAi) {
+			this.maxClients = 1;
+		}
 
 		this.onMessage('command', async (client, rawMessage) => {
 			const parsed = gameCommandSchema.safeParse(rawMessage);
@@ -264,6 +345,10 @@ export class CapstoneRoom extends Room {
 					gameId: this.gameId,
 					snapshot: await this.loadLatestSnapshot()
 				});
+
+				if (!this.gameEnded) {
+					await this.applyAiOpponentTurn();
+				}
 			} catch (error) {
 				const message = error instanceof InvalidMoveError ? error.message : 'Move failed.';
 				const errors = error instanceof InvalidMoveError ? error.errors : ['move failed'];

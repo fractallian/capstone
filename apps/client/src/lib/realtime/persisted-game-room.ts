@@ -6,6 +6,8 @@ interface PersistedGameRoomOptions {
 	colyseusUrl: string;
 	gameId: string;
 	userId: string;
+	/** When true, only you connect; seat 1 is controlled server-side (see CapstoneRoom). */
+	vsAi?: boolean;
 	onEvent: (event: GameServerEvent) => void;
 	onLeave: () => void;
 }
@@ -29,7 +31,8 @@ export async function connectPersistedGameRoom(options: PersistedGameRoomOptions
 	const client = new Client(options.colyseusUrl);
 	const room = await client.joinOrCreate('capstone', {
 		userId: options.userId,
-		gameId: options.gameId
+		gameId: options.gameId,
+		...(options.vsAi ? { vsAi: true, needsOpponent: false } : {})
 	});
 
 	wirePersistedGameRoom(room, {
