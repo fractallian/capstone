@@ -22,24 +22,16 @@ export function analyzeLine(line: BoardLine, player: Player) {
 	results.loser = tops.every((top) => top === opponent) ? 1 : 0;
 	if (results.loser) return results;
 
-	for (let start = 0; start <= 1; start++) {
-		const a = tops[start];
-		const b = tops[start + 1];
-		const c = tops[start + 2];
-		if (a !== null && a === b && b === c) {
-			if (a === player) results.threeInRow.player += 1;
-			else if (a === opponent) results.threeInRow.opponent += 1;
-		}
+	let playerTops = 0;
+	let opponentTops = 0;
+	for (const top of tops) {
+		if (top === null) continue;
+		if (top === player) playerTops += 1;
+		else if (top === opponent) opponentTops += 1;
 	}
-
-	for (let start = 0; start <= 2; start++) {
-		const a = tops[start];
-		const b = tops[start + 1];
-		if (a !== null && a === b) {
-			if (a === player) results.twoInRow.player += 1;
-			else if (a === opponent) results.twoInRow.opponent += 1;
-		}
-	}
+	const counts = { player: playerTops, opponent: opponentTops };
+	results.threeInRow = counts;
+	results.twoInRow = counts;
 
 	return results;
 }

@@ -90,7 +90,7 @@ export const load = async ({ locals, url }) => {
 		return {
 			id: gameRecord.id,
 			opponent: gameRecord.vsAi
-				? { id: 'ai', name: 'AI opponent', image: null as string | null }
+				? { id: 'ai', name: 'CPU', image: null as string | null }
 				: opponentId
 					? (opponentById.get(opponentId) ?? null)
 					: null,
@@ -114,7 +114,7 @@ export const load = async ({ locals, url }) => {
 			id: gameRecord.id,
 			opponent: (() => {
 				if (gameRecord.vsAi) {
-					return { id: 'ai', name: 'AI opponent', image: null as string | null };
+					return { id: 'ai', name: 'CPU', image: null as string | null };
 				}
 				const opponentId =
 					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
@@ -135,7 +135,7 @@ export const load = async ({ locals, url }) => {
 
 	return {
 		githubLoginEnabled: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
-		aiOpponentEnabled: env.AI_OPPONENT_ENABLED === 'true',
+		aiOpponentEnabled: env.AI_OPPONENT_ENABLED !== 'false',
 		colyseusUrl: getColyseusPublicUrl(url),
 		hasSession: Boolean(locals.session),
 		user: locals.user

@@ -18,7 +18,7 @@ describe('analyzeLine', () => {
 		});
 	});
 
-	it('counts one triple and two pairs when P1 owns the first three cells of the row', () => {
+	it('counts total top pieces per side in the line (not consecutive)', () => {
 		const moves: SerializedMove[] = [
 			{ from: 16, to: 0 },
 			{ from: 19, to: 4 },
@@ -30,18 +30,20 @@ describe('analyzeLine', () => {
 		const game = Game.deserialize(moves);
 		const line = topRow(game);
 
+		const counts = { player: 3, opponent: 0 };
 		expect(analyzeLine(line, game.player1)).toEqual({
 			winner: 0,
 			loser: 0,
-			threeInRow: { player: 1, opponent: 0 },
-			twoInRow: { player: 2, opponent: 0 }
+			threeInRow: counts,
+			twoInRow: counts
 		});
 
+		const countsP2 = { player: 0, opponent: 3 };
 		expect(analyzeLine(line, game.player2)).toEqual({
 			winner: 0,
 			loser: 0,
-			threeInRow: { player: 0, opponent: 1 },
-			twoInRow: { player: 0, opponent: 2 }
+			threeInRow: countsP2,
+			twoInRow: countsP2
 		});
 	});
 
@@ -83,7 +85,7 @@ describe('analyzeLine', () => {
 		});
 	});
 
-	it('does not count mixed-owner windows', () => {
+	it('counts alternating tops without requiring adjacency', () => {
 		const game = new Game();
 		game.makeMove(game.player1.pool.stacks[0], game.board.stacks[0][0]);
 		game.makeMove(game.player2.pool.stacks[0], game.board.stacks[0][1]);
@@ -91,11 +93,12 @@ describe('analyzeLine', () => {
 		game.makeMove(game.player2.pool.stacks[0], game.board.stacks[0][3]);
 		const line = topRow(game);
 
+		const counts = { player: 2, opponent: 2 };
 		expect(analyzeLine(line, game.player1)).toEqual({
 			winner: 0,
 			loser: 0,
-			threeInRow: { player: 0, opponent: 0 },
-			twoInRow: { player: 0, opponent: 0 }
+			threeInRow: counts,
+			twoInRow: counts
 		});
 	});
 });

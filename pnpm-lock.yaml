@@ -23,6 +23,9 @@ importers:
 
   apps/client:
     dependencies:
+      '@capstone/virtual-opponent':
+        specifier: workspace:*
+        version: link:../../packages/virtual-opponent
       interactjs:
         specifier: ^1.10.27
         version: 1.10.27

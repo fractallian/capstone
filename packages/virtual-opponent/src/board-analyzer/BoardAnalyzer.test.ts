@@ -6,7 +6,6 @@ import { analyzeLine } from './analyzeLine';
 /** Mirrors `BoardAnalyzer.analyze()` aggregation (same line order, same early exit on win or loss lines). */
 function aggregateThreats(game: Game, player: Player) {
 	const threeInRow = { player: 0, opponent: 0 };
-	const twoInRow = { player: 0, opponent: 0 };
 	let winner: boolean | undefined;
 	let wouldLose: boolean | undefined;
 	for (const line of game.board.lines()) {
@@ -21,10 +20,12 @@ function aggregateThreats(game: Game, player: Player) {
 		}
 		threeInRow.player += analysis.threeInRow.player;
 		threeInRow.opponent += analysis.threeInRow.opponent;
-		twoInRow.player += analysis.twoInRow.player;
-		twoInRow.opponent += analysis.twoInRow.opponent;
 	}
-	return { threeInRow, twoInRow, winner, wouldLose };
+	return { threeInRow, winner, wouldLose };
+}
+
+function negatedOpponentLineScore(opponentSum: number) {
+	return opponentSum === 0 ? 0 : -opponentSum;
 }
 
 describe('BoardAnalyzer', () => {
@@ -44,7 +45,7 @@ describe('BoardAnalyzer', () => {
 		analyzer.analyze();
 
 		expect(analyzer.cache.threeInRow).toEqual(expected.threeInRow);
-		expect(analyzer.cache.twoInRow).toEqual(expected.twoInRow);
+		expect(analyzer.twoInRow()).toBe(negatedOpponentLineScore(expected.threeInRow.opponent));
 		expect(expected.winner).toBeUndefined();
 	});
 
@@ -54,7 +55,7 @@ describe('BoardAnalyzer', () => {
 		analyzer.analyze();
 
 		expect(analyzer.cache.threeInRow).toEqual({ player: 0, opponent: 0 });
-		expect(analyzer.cache.twoInRow).toEqual({ player: 0, opponent: 0 });
+		expect(analyzer.twoInRow()).toBe(0);
 	});
 
 	it('does not set cache.winner when the opponent has a full line but perspective is the other player', () => {
@@ -74,7 +75,7 @@ describe('BoardAnalyzer', () => {
 		expect(analyzer.cache.wouldLose).toBe(true);
 		const expected = aggregateThreats(game, game.player2);
 		expect(analyzer.cache.threeInRow).toEqual(expected.threeInRow);
-		expect(analyzer.cache.twoInRow).toEqual(expected.twoInRow);
+		expect(analyzer.twoInRow()).toBe(negatedOpponentLineScore(expected.threeInRow.opponent));
 		expect(expected.wouldLose).toBe(true);
 	});
 
@@ -93,7 +94,7 @@ describe('BoardAnalyzer', () => {
 
 		expect(analyzerP1.cache.winner).toBe(true);
 		expect(analyzerP1.cache.threeInRow).toEqual({ player: 0, opponent: 0 });
-		expect(analyzerP1.cache.twoInRow).toEqual({ player: 0, opponent: 0 });
+		expect(analyzerP1.twoInRow()).toBe(0);
 	});
 
 	it('uses the constructor player as the perspective (not game.currentTurn)', () => {
@@ -107,14 +108,14 @@ describe('BoardAnalyzer', () => {
 		analyzerAsP1.analyze();
 		const expectedP1 = aggregateThreats(game, game.player1);
 		expect(analyzerAsP1.cache.threeInRow).toEqual(expectedP1.threeInRow);
-		expect(analyzerAsP1.cache.twoInRow).toEqual(expectedP1.twoInRow);
+		expect(analyzerAsP1.twoInRow()).toBe(negatedOpponentLineScore(expectedP1.threeInRow.opponent));
 
 		const analyzerAsP2 = new BoardAnalyzer(game, game.player2);
 		expect(analyzerAsP2.player).toBe(game.player2);
 		analyzerAsP2.analyze();
 		const expectedP2 = aggregateThreats(game, game.player2);
 		expect(analyzerAsP2.cache.threeInRow).toEqual(expectedP2.threeInRow);
-		expect(analyzerAsP2.cache.twoInRow).toEqual(expectedP2.twoInRow);
+		expect(analyzerAsP2.twoInRow()).toBe(negatedOpponentLineScore(expectedP2.threeInRow.opponent));
 	});
 });
 

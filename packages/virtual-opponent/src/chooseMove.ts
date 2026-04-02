@@ -5,9 +5,13 @@ export function chooseMove(game: Game) {
 	const legalMoves = listLegalMoves(game);
 	let bestMove: { move: SerializedMove; score: MoveScore } | null = null;
 	for (const move of legalMoves) {
+		const mover = game.currentTurn;
 		const gameState = game.clone();
 		gameState.makeMove(gameState.stacks[move.from], gameState.stacks[move.to]);
-		const analyzer = new BoardAnalyzer(gameState, gameState.currentTurn);
+		// Score from the mover's perspective. After makeMove, currentTurn is the opponent — using that
+		// would invert player/opponent and break defense (wouldLose blocks human wins).
+		const moverInClone = mover === game.player1 ? gameState.player1 : gameState.player2;
+		const analyzer = new BoardAnalyzer(gameState, moverInClone);
 		analyzer.analyze();
 		if (analyzer.winner()) return move;
 		if (!bestMove) bestMove = { move, score: analyzer.score() };

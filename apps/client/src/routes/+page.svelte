@@ -372,7 +372,7 @@
 										disabled={matchmakingState === 'waiting'}
 										onclick={() => void startNewAiGame()}
 									>
-										Play vs AI
+										Play vs CPU
 									</button>
 								{/if}
 							</div>

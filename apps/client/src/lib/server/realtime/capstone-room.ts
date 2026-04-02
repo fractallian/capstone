@@ -234,10 +234,7 @@ export class CapstoneRoom extends Room {
 					legalMoves
 				});
 			} catch (err) {
-				console.warn(
-					'[capstone:openai-move] provider failed; falling back to random legal move:',
-					err
-				);
+				console.warn('[capstone:cpu-move] provider failed; falling back to random legal move:', err);
 				chosen = this.pickRandomMove(legalMoves);
 			}
 		}
