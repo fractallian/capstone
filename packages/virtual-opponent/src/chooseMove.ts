@@ -25,12 +25,12 @@ const scoreCriteria: (keyof MoveScore)[] = [
 	'winner',
 	'wouldLose',
 	'threeInRow',
+	'oppThreeInRow',
 	'twoInRow',
+	'oppTwoInRow',
 	'spaceDiff',
-	'centerSpaces',
-	'cornerSpaces',
-	'pieceWeight',
-	'poolWeight'
+	'betterSpaces',
+	'oppBetterSpaces'
 ];
 
 function compareScores(score1: MoveScore, score2: MoveScore) {

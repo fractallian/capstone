@@ -8,42 +8,42 @@ type PlayerScores = {
 
 type Cache = {
 	lines: BoardLine[];
-	winner?: boolean;
-	wouldLose?: boolean;
-	/** Per-line sums of top-piece counts (player vs opponent); `twoInRow()` score derives from opponent total. */
-	threeInRow?: PlayerScores;
-	/** Top-piece counts: player cells minus opponent cells on the 4×4 board. */
-	spaceDiff?: number;
-	/** Board cells among the inner 2×2 where the current player's piece is on top. */
-	centerSpaces?: number;
-	/** Corner cells where the current player's piece is on top. */
-	cornerSpaces?: number;
-	/** Sum of sizes (0–3) of the current player's top pieces on the board. */
-	pieceWeight?: number;
-	/** Negated sum of pool piece sizes so lexicographic compare (higher = better) prefers deploying pieces. */
-	poolWeight?: number;
+	winner: boolean;
+	wouldLose: boolean;
+	spaceDiff: number;
+	threeInRow: PlayerScores;
+	twoInRow: PlayerScores;
+	betterSpaces: PlayerScores;
 };
 
+const INITIAL_CACHE: Omit<Cache, 'lines'> = {
+	winner: false,
+	wouldLose: false,
+	spaceDiff: 0,
+	threeInRow: { player: 0, opponent: 0 },
+	twoInRow: { player: 0, opponent: 0 },
+	betterSpaces: { player: 0, opponent: 0 }
+};
+
+// Flat map of of scores. Bigger is always better.
 export type MoveScore = {
 	winner: number;
 	wouldLose: number;
 	threeInRow: number;
+	oppThreeInRow: number;
 	twoInRow: number;
+	oppTwoInRow: number;
 	spaceDiff: number;
-	centerSpaces: number;
-	cornerSpaces: number;
-	pieceWeight: number;
-	poolWeight: number;
+	betterSpaces: number;
+	oppBetterSpaces: number;
 };
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
-type AnalyzedCache = WithRequired<Cache, 'winner' | 'wouldLose' | 'threeInRow'>;
+type AnalyzedCache = WithRequired<Cache, 'winner' | 'wouldLose' | 'threeInRow' | 'twoInRow'>;
 
 const isAnalyzedCache = (cache: Cache): cache is AnalyzedCache => {
 	return (
-		cache.winner !== undefined &&
-		cache.wouldLose !== undefined &&
-		cache.threeInRow !== undefined
+		cache.winner !== undefined && cache.wouldLose !== undefined && cache.threeInRow !== undefined
 	);
 };
 
@@ -68,6 +68,10 @@ export class BoardAnalyzer {
 		this.player = player;
 		this.opponent = player === game.player1 ? game.player2 : game.player1;
 		this.cache = {
+			...INITIAL_CACHE,
+			threeInRow: { ...INITIAL_CACHE.threeInRow },
+			twoInRow: { ...INITIAL_CACHE.twoInRow },
+			betterSpaces: { ...INITIAL_CACHE.betterSpaces },
 			lines: game.board.lines()
 		};
 		this.analyzed = false;
@@ -75,10 +79,6 @@ export class BoardAnalyzer {
 
 	public analyze() {
 		this.analyzed = true;
-		this.cache.threeInRow = {
-			player: 0,
-			opponent: 0
-		};
 		for (const line of this.cache.lines) {
 			const analysis = analyzeLine(line, this.player);
 			if (analysis.winner) {
@@ -93,6 +93,8 @@ export class BoardAnalyzer {
 			}
 			this.cache.threeInRow.player += analysis.threeInRow.player;
 			this.cache.threeInRow.opponent += analysis.threeInRow.opponent;
+			this.cache.twoInRow.player += analysis.twoInRow.player;
+			this.cache.twoInRow.opponent += analysis.twoInRow.opponent;
 		}
 		this.cache.winner = false;
 		this.cache.wouldLose = false;
@@ -106,7 +108,9 @@ export class BoardAnalyzer {
 		let playerTops = 0;
 		let oppTops = 0;
 		let center = 0;
+		let oppCenter = 0;
 		let corners = 0;
+		let oppCorners = 0;
 		let topSizeSum = 0;
 
 		for (let r = 0; r < 4; r++) {
@@ -117,14 +121,15 @@ export class BoardAnalyzer {
 					playerTops++;
 					topSizeSum += top.size;
 					if (r >= 1 && r <= 2 && c >= 1 && c <= 2) center++;
-					if (
-						(r === 0 || r === 3) &&
-						(c === 0 || c === 3)
-					) {
+					if ((r === 0 || r === 3) && (c === 0 || c === 3)) {
 						corners++;
 					}
 				} else if (top.player === this.opponent) {
 					oppTops++;
+					if (r >= 1 && r <= 2 && c >= 1 && c <= 2) oppCenter++;
+					if ((r === 0 || r === 3) && (c === 0 || c === 3)) {
+						oppCorners++;
+					}
 				}
 			}
 		}
@@ -137,11 +142,10 @@ export class BoardAnalyzer {
 		}
 
 		this.cache.spaceDiff = playerTops - oppTops;
-		this.cache.centerSpaces = center;
-		this.cache.cornerSpaces = corners;
-		this.cache.pieceWeight = topSizeSum;
-		// PRD: pool weight sign −; compareScores treats higher as better → store −sum.
-		this.cache.poolWeight = -poolSizeSum;
+		this.cache.betterSpaces = {
+			player: center + corners,
+			opponent: oppCenter + oppCorners
+		};
 		this.materialMetricsCached = true;
 	}
 
@@ -149,13 +153,13 @@ export class BoardAnalyzer {
 		return {
 			winner: this.winner(),
 			wouldLose: this.wouldLose(),
-			threeInRow: this.threeInRow(),
-			twoInRow: this.twoInRow(),
+			threeInRow: this.threeInRow().player,
+			oppThreeInRow: this.threeInRow().opponent,
+			twoInRow: this.twoInRow().player,
+			oppTwoInRow: this.twoInRow().opponent,
 			spaceDiff: this.spaceDiff(),
-			centerSpaces: this.centerSpaces(),
-			cornerSpaces: this.cornerSpaces(),
-			pieceWeight: this.pieceWeight(),
-			poolWeight: this.poolWeight()
+			betterSpaces: this.betterSpaces().player,
+			oppBetterSpaces: this.betterSpaces().opponent
 		};
 	}
 
@@ -184,39 +188,21 @@ export class BoardAnalyzer {
 
 	public threeInRow() {
 		const cache = throwIfNotAnalyzed(this.cache);
-		return cache.threeInRow.player;
+		return cache.threeInRow;
 	}
 
-	/** Negated sum of opponent top counts over lines (higher = fewer opponent tops; aligns with lexicographic “higher is better”). */
 	public twoInRow() {
 		const cache = throwIfNotAnalyzed(this.cache);
-		const o = cache.threeInRow.opponent;
-		return o === 0 ? 0 : -o;
+		return cache.twoInRow;
 	}
 
 	public spaceDiff() {
 		this.ensureMaterialMetrics();
-		return this.cache.spaceDiff!;
+		return this.cache.spaceDiff;
 	}
 
-	public centerSpaces() {
+	public betterSpaces() {
 		this.ensureMaterialMetrics();
-		return this.cache.centerSpaces!;
-	}
-
-	public cornerSpaces() {
-		this.ensureMaterialMetrics();
-		return this.cache.cornerSpaces!;
-	}
-
-	public pieceWeight() {
-		this.ensureMaterialMetrics();
-		return this.cache.pieceWeight!;
-	}
-
-	/** Negated pool size sum (higher = fewer / smaller pieces left in pool). */
-	public poolWeight() {
-		this.ensureMaterialMetrics();
-		return this.cache.poolWeight!;
+		return this.cache.betterSpaces;
 	}
 }

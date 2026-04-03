@@ -29,9 +29,14 @@ export function analyzeLine(line: BoardLine, player: Player) {
 		if (top === player) playerTops += 1;
 		else if (top === opponent) opponentTops += 1;
 	}
-	const counts = { player: playerTops, opponent: opponentTops };
-	results.threeInRow = counts;
-	results.twoInRow = counts;
+	results.threeInRow = {
+		player: playerTops >= 3 ? 1 : 0,
+		opponent: opponentTops >= 3 ? 1 : 0
+	};
+	results.twoInRow = {
+		player: playerTops >= 2 ? 1 : 0,
+		opponent: opponentTops >= 2 ? 1 : 0
+	};
 
 	return results;
 }
