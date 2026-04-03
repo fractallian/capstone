@@ -1,5 +1,6 @@
 import { Game, listLegalMoves, SerializedMove } from '@capstone/game-logic';
 import { BoardAnalyzer, type MoveScore } from './board-analyzer/BoardAnalyzer';
+import { isLeapMove } from './isLeapMove';
 
 export function chooseMove(game: Game) {
 	const legalMoves = listLegalMoves(game);
@@ -14,8 +15,11 @@ export function chooseMove(game: Game) {
 		const analyzer = new BoardAnalyzer(gameState, moverInClone);
 		analyzer.analyze();
 		if (analyzer.winner()) return move;
-		if (!bestMove) bestMove = { move, score: analyzer.score() };
-		const score = analyzer.score();
+		const score: MoveScore = {
+			...analyzer.score(),
+			leap: isLeapMove(game, move) ? 1 : 0
+		};
+		if (!bestMove) bestMove = { move, score };
 		if (compareScores(score, bestMove.score) > 0) bestMove = { move, score };
 	}
 	return bestMove?.move ?? legalMoves[0];
@@ -24,6 +28,7 @@ export function chooseMove(game: Game) {
 const scoreCriteria: (keyof MoveScore)[] = [
 	'winner',
 	'wouldLose',
+	'leap',
 	'threeInRow',
 	'oppThreeInRow',
 	'twoInRow',

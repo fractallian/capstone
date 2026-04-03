@@ -25,8 +25,8 @@ const INITIAL_CACHE: Omit<Cache, 'lines'> = {
 	betterSpaces: { player: 0, opponent: 0 }
 };
 
-// Flat map of of scores. Bigger is always better.
-export type MoveScore = {
+/** Metrics derived only from the board state after a move (no knowledge of which edge was played). */
+export type PositionScore = {
 	winner: number;
 	wouldLose: number;
 	threeInRow: number;
@@ -37,6 +37,9 @@ export type MoveScore = {
 	betterSpaces: number;
 	oppBetterSpaces: number;
 };
+
+/** Full move ranking vector: position metrics plus `leap` (pool onto opponent), set in `chooseMove`. */
+export type MoveScore = PositionScore & { leap: number };
 
 type WithRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 type AnalyzedCache = WithRequired<Cache, 'winner' | 'wouldLose' | 'threeInRow' | 'twoInRow'>;
@@ -149,7 +152,7 @@ export class BoardAnalyzer {
 		this.materialMetricsCached = true;
 	}
 
-	public score(): MoveScore {
+	public score(): PositionScore {
 		return {
 			winner: this.winner(),
 			wouldLose: this.wouldLose(),
