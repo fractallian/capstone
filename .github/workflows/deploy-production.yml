@@ -6,10 +6,14 @@
 #   DEPLOY_PATH              — absolute path to the repo on the server (e.g. /home/deploy/capstone)
 #   DEPLOY_SSH_PRIVATE_KEY   — private key for that user (full PEM, including headers)
 #
+# Optional:
+#   DEPLOY_SSH_KEY_PASSPHRASE — only if the private key is encrypted with a passphrase
+#                               (prefer a dedicated CI deploy key with no passphrase)
 #
 # Server prerequisites:
 #   - Repo is a clone with remote access (deploy key or HTTPS credential).
-#   - Node 20+ and corepack/pnpm available, or adjust the script.
+#   - Node 20+ and npm (for npx). We use `npx pnpm@…` instead of corepack so a broken
+#     or non-executable /usr/bin/corepack on the host does not block deploys.
 #   - User can run: sudo systemctl restart capstone (NOPASSWD sudo for that command is typical).
 
 name: Deploy production
@@ -40,9 +44,9 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.DEPLOY_SSH_KEY_PASSPHRASE }}
           command_timeout: 30m
           envs: GIT_REF,DEPLOY_PATH
-          script_stop: true
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH"
@@ -50,9 +54,8 @@ jobs:
             git checkout "$GIT_REF"
             git pull --ff-only origin "$GIT_REF"
             export NODE_OPTIONS=--max-old-space-size=8192
-            corepack enable
-            corepack prepare pnpm@10.30.3 --activate
-            pnpm install --frozen-lockfile
-            pnpm exec turbo run build --filter=capstone
+            # Do not use corepack here: some hosts ship a non-executable /usr/bin/corepack.
+            npx --yes pnpm@10.30.3 install --frozen-lockfile
+            npx --yes pnpm@10.30.3 exec turbo run build --filter=capstone
             sudo systemctl restart capstone
             sudo systemctl is-active capstone
