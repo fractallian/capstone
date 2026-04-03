@@ -10,8 +10,10 @@
 		type MakeMoveCommand
 	} from '@capstone/contracts';
 	import { Client, type Room } from 'colyseus.js';
+	import { animateMove, animateMoveFromStackIndices } from '$lib/dom/animateStackMove';
 	import {
 		appendRecentEvent,
+		getCapstoneGameBoardRoot,
 		parseGameEvent,
 		setDebugHelpers,
 		setDebugRoom,
@@ -62,6 +64,8 @@
 	let debugLastEvent: GameServerEvent | null = $state(null);
 	let debugEvents: GameServerEvent[] = $state([]);
 	let debugSyncSeq = $state(0);
+	/** Tracks `state_sync` move list length to detect new plies (not full history replay). */
+	let lastStateSyncMoveCount = -1;
 
 	function getMoves(gameState: GameStateLike): SerializedMove[] {
 		if (!gameState) return [];
@@ -99,6 +103,22 @@
 		return 'Waiting...';
 	}
 
+	/** The player to move after `prevCount` plies — that player plays the next incremental move. */
+	function isOpponentIncrementalMove(
+		fullMoves: SerializedMove[],
+		prevCount: number,
+		viewerIndex: 1 | 2
+	): boolean {
+		const prevMoves = fullMoves.slice(0, prevCount);
+		const before = Game.deserialize(prevMoves);
+		const moverSeat = before.currentTurnIndex();
+		const viewerSeat = viewerIndex - 1;
+		return moverSeat !== viewerSeat;
+	}
+
+	/** DOM flight duration for opponent moves (see `$lib/dom/animateStackMove`). */
+	const OPPONENT_MOVE_ANIMATION_MS = 680;
+
 	let game = $derived(Game.deserialize(getMoves(liveSnapshot)));
 	let currentTurnIndex = $derived(getCurrentTurnIndex(liveSnapshot));
 	let winnerPlayerId = $derived(getWinnerPlayerId(liveSnapshot));
@@ -108,9 +128,9 @@
 	let isViewerWinner = $derived(
 		Boolean(
 			isGameEnded &&
-				(winnerSeatIndex !== null
-					? winnerSeatIndex === viewerPlayerIndex - 1
-					: winnerPlayerId === viewerUserId)
+			(winnerSeatIndex !== null
+				? winnerSeatIndex === viewerPlayerIndex - 1
+				: winnerPlayerId === viewerUserId)
 		)
 	);
 	let showEndBanner = $derived(
@@ -240,7 +260,19 @@
 			clearEvents: () => {
 				debugEvents = [];
 			},
-			info: 'Debug helpers attached from the persisted game page with realtime room support.'
+			info: 'Debug helpers attached from the persisted game page with realtime room support.',
+			animateStackMove: {
+				animateMove,
+				animateMoveFromStackIndices: (fromIndex: number, toIndex: number) => {
+					const root = getCapstoneGameBoardRoot();
+					if (!root) {
+						return Promise.reject(
+							new Error('Game board root not registered — ensure the board is mounted (dev only).')
+						);
+					}
+					return animateMoveFromStackIndices(root, fromIndex, toIndex);
+				}
+			}
 		});
 	});
 
@@ -266,9 +298,52 @@
 					debugEvents = appendRecentEvent(debugEvents, event);
 
 					if (event.type === 'state_sync') {
-						liveSnapshot = event.snapshot;
-						gameMessage = null;
-						debugSyncSeq += 1;
+						const moves = event.snapshot.moves;
+						const hasNewMoves =
+							lastStateSyncMoveCount >= 0 && moves.length > lastStateSyncMoveCount;
+						const newMoves = hasNewMoves ? moves.slice(lastStateSyncMoveCount) : [];
+
+						if (hasNewMoves) {
+							console.log('[capstone] move received (state_sync)', {
+								newMoves,
+								gameId: event.gameId,
+								moveCount: moves.length,
+								snapshot: event.snapshot
+							});
+						}
+
+						const applySnapshot = () => {
+							lastStateSyncMoveCount = moves.length;
+							liveSnapshot = event.snapshot;
+							gameMessage = null;
+							debugSyncSeq += 1;
+						};
+
+						if (
+							hasNewMoves &&
+							newMoves.length > 0 &&
+							isOpponentIncrementalMove(moves, lastStateSyncMoveCount, viewerPlayerIndex)
+						) {
+							const first = newMoves[0]!;
+							const root = getCapstoneGameBoardRoot();
+							const fromEl = root?.querySelector<HTMLElement>(
+								`[data-stack-index="${first.from}"]`
+							);
+							const toEl = root?.querySelector<HTMLElement>(
+								`[data-stack-index="${first.to}"]`
+							);
+							if (fromEl && toEl) {
+								void animateMove(fromEl, toEl, {
+									durationMs: OPPONENT_MOVE_ANIMATION_MS
+								})
+									.then(applySnapshot)
+									.catch(applySnapshot);
+							} else {
+								applySnapshot();
+							}
+						} else {
+							applySnapshot();
+						}
 						return;
 					}
 
@@ -308,7 +383,7 @@
 	});
 </script>
 
-<div class="flex-1 min-h-0 bg-slate-50 px-4 py-8">
+<div class="min-h-0 flex-1 bg-slate-50 px-4 py-8">
 	<section class="mx-auto flex w-full max-w-6xl flex-col gap-6">
 		<GamePlayerHeader
 			{player1}
@@ -331,7 +406,7 @@
 			<div class="relative mx-auto aspect-6/4 w-full max-w-5xl overflow-hidden rounded-md">
 				<GameComponent
 					moves={getMoves(liveSnapshot)}
-					movesSyncKey={movesSyncKey}
+					{movesSyncKey}
 					{viewerPlayerIndex}
 					{canInteract}
 					onMove={handleBoardMove}

@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
+	import { browser, dev } from '$app/environment';
 	import Board from './Board.svelte';
 	import Pool from './Pool.svelte';
 	import type { StackProps } from './Stack.svelte';
+	import { setCapstoneGameBoardRoot } from '$lib/realtime/client-events';
 	import { Game, Move, PlayerColor, type SerializedMove } from '@capstone/game-logic';
 
 	export type GameProps = {
@@ -29,6 +30,12 @@
 	$effect.pre(() => {
 		void movesSyncKey;
 		localMoves = [...moves];
+	});
+
+	$effect(() => {
+		if (!dev || !browser) return;
+		setCapstoneGameBoardRoot(gameElement ?? null);
+		return () => setCapstoneGameBoardRoot(null);
 	});
 
 	let localGame = $derived(Game.deserialize(localMoves));

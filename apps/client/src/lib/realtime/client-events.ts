@@ -1,6 +1,17 @@
 import { gameServerEventSchema, type GameServerEvent, type GameSnapshot } from '@capstone/contracts';
 import type { Game } from '@capstone/game-logic';
 import type { Room } from 'colyseus.js';
+import type { AnimateStackMoveOptions } from '$lib/dom/animateStackMove';
+
+/** DOM-only stack flight (dev); see `$lib/dom/animateStackMove`. */
+export type CapstoneAnimateStackMove = {
+	animateMove: (
+		fromStack: HTMLElement,
+		toStack: HTMLElement,
+		options?: AnimateStackMoveOptions
+	) => Promise<void>;
+	animateMoveFromStackIndices: (fromIndex: number, toIndex: number) => Promise<void>;
+};
 
 export type CapstoneDebug = {
 	room: Room | null;
@@ -19,12 +30,26 @@ export type CapstoneDebug = {
 	joinByRoomId: (roomId: string) => Promise<void>;
 	clearEvents: () => void;
 	info?: string;
+	/** Set on the persisted game page in dev — try `__capstoneAnimateStackMove` on `window`. */
+	animateStackMove?: CapstoneAnimateStackMove;
 };
 
 type CapstoneDebugWindow = Window & {
 	__capstoneDebug?: CapstoneDebug;
 	__capstoneRoom?: Room | null;
+	__capstoneAnimateStackMove?: CapstoneAnimateStackMove;
 };
+
+let capstoneGameBoardRoot: HTMLElement | null = null;
+
+/** Called from `Game.svelte` (dev) so dev helpers can resolve `[data-stack-index]`. */
+export function setCapstoneGameBoardRoot(el: HTMLElement | null): void {
+	capstoneGameBoardRoot = el;
+}
+
+export function getCapstoneGameBoardRoot(): HTMLElement | null {
+	return capstoneGameBoardRoot;
+}
 
 export function parseGameEvent(payload: unknown): GameServerEvent | null {
 	const parsed = gameServerEventSchema.safeParse(payload);
@@ -45,4 +70,9 @@ export function setDebugHelpers(debug: CapstoneDebug): void {
 	if (typeof window === 'undefined') return;
 	const debugWindow = window as CapstoneDebugWindow;
 	debugWindow.__capstoneDebug = debug;
+	if (debug.animateStackMove) {
+		debugWindow.__capstoneAnimateStackMove = debug.animateStackMove;
+	} else {
+		delete debugWindow.__capstoneAnimateStackMove;
+	}
 }

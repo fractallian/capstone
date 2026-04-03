@@ -3,8 +3,9 @@
 * Animate moves
 * Replay games
 * Mobile friendly
-* Improve AI
 * Fix redundant data model
+* Games with sequence number for easy id
+* Decouple rooms and game records
 
 
 ## Design
