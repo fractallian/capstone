@@ -1,5 +1,6 @@
 import { Server } from "colyseus";
 import { env } from "$env/dynamic/private";
+import { env as publicEnv } from "$env/dynamic/public";
 import { CapstoneRoom } from "./capstone-room";
 
 let serverReady: Promise<void> | null = null;
@@ -10,8 +11,9 @@ export function getColyseusPort(): number {
 }
 
 export function getColyseusPublicUrl(requestUrl?: URL): string {
-	if (env.PUBLIC_COLYSEUS_URL) {
-		return env.PUBLIC_COLYSEUS_URL;
+	// PUBLIC_* vars live in $env/dynamic/public only; private env excludes them.
+	if (publicEnv.PUBLIC_COLYSEUS_URL) {
+		return publicEnv.PUBLIC_COLYSEUS_URL;
 	}
 
 	if (requestUrl) {
