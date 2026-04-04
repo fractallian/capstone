@@ -304,14 +304,22 @@
 		matchmakingState = 'idle';
 		matchmakingMessage = null;
 		try {
+			await room?.leave();
 			const client = new Client(data.colyseusUrl);
-			room = await client.create('capstone', {
+			const gameId = crypto.randomUUID();
+			// vs-AI rooms allow only one client. Create briefly so onJoin persists the game,
+			// then leave so /game/[gameId] can own the connection.
+			const created = await client.create('capstone', {
 				userId: data.user.id,
-				gameId: crypto.randomUUID(),
+				gameId,
 				needsOpponent: false,
 				vsAi: true
 			});
-			wireRoom(room, { navigateOnWaiting: true });
+			await created.leave();
+			room = null;
+			exposeRoomForDev(null);
+			await goto(`/game/${gameId}`);
+			void invalidateAll();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			matchmakingState = 'failed';
