@@ -319,6 +319,9 @@
 				needsOpponent: false,
 				vsAi: true
 			});
+			// Server sends `event` messages on join; swallow them before leave() so Colyseus
+			// does not warn "onMessage() not registered for type 'event'".
+			created.onMessage('event', () => {});
 			await created.leave();
 			room = null;
 			exposeRoomForDev(null);

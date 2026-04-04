@@ -283,15 +283,22 @@
 	});
 
 	$effect(() => {
+		// Read deps synchronously so this effect re-runs on route/param changes and
+		// subscribes correctly (reads inside async continuations are not tracked).
+		const wsUrl = colyseusUrl;
+		const userId = viewerUserId;
+		const persistedGameId = gameId;
+		const isVsAi = vsAi;
+
 		let cancelled = false;
 		let activeRoom: Room | null = null;
 
 		async function connectToRoom() {
 			const joined = await connectPersistedGameRoom({
-				colyseusUrl,
-				userId: viewerUserId,
-				gameId,
-				vsAi,
+				colyseusUrl: wsUrl,
+				userId,
+				gameId: persistedGameId,
+				vsAi: isVsAi,
 				onLeave: () => {
 					if (activeRoom === joined) {
 						activeRoom = null;

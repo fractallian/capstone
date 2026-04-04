@@ -16,14 +16,16 @@ export function wirePersistedGameRoom(
 	room: Room,
 	handlers: Pick<PersistedGameRoomOptions, 'onEvent' | 'onLeave'>
 ): void {
-	room.onLeave(() => {
-		handlers.onLeave();
-	});
-
+	// Register `event` before `onLeave` so the first ROOM_DATA frame after JOIN cannot
+	// arrive between handlers (microtask ordering).
 	room.onMessage('event', (payload: unknown) => {
 		const event = parseGameEvent(payload);
 		if (!event) return;
 		handlers.onEvent(event);
+	});
+
+	room.onLeave(() => {
+		handlers.onLeave();
 	});
 }
 
