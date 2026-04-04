@@ -12,7 +12,6 @@
 	import { onMount } from 'svelte';
 	import CompletedGamesSection from '$lib/components/lobby/CompletedGamesSection.svelte';
 	import InProgressGamesSection from '$lib/components/lobby/InProgressGamesSection.svelte';
-	import WaitingGamesSection from '$lib/components/lobby/WaitingGamesSection.svelte';
 	import {
 		appendRecentEvent,
 		parseGameEvent,
@@ -66,6 +65,8 @@
 	let debugSyncSeq = 0;
 	let debugGame: Game | null = null;
 	let debugGameSeq = -1;
+
+	let hasAwaitingOpponent = $derived(data.waitingGames.length > 0);
 
 	function formatDate(value: string) {
 		return new Intl.DateTimeFormat(undefined, {
@@ -142,7 +143,10 @@
 			},
 			sendMoveAndWait: async (from: number, to: number, timeoutMs = 5000) => {
 				const startSeq = debugSyncSeq;
-				(window as Window & { __capstoneDebug?: CapstoneDebug }).__capstoneDebug?.sendMove(from, to);
+				(window as Window & { __capstoneDebug?: CapstoneDebug }).__capstoneDebug?.sendMove(
+					from,
+					to
+				);
 				const snapshot = await (
 					window as Window & { __capstoneDebug?: CapstoneDebug }
 				).__capstoneDebug?.awaitNextSync(timeoutMs);
@@ -341,21 +345,13 @@
 	});
 </script>
 
-<div class="flex-1 min-h-0 bg-slate-50 px-4 py-8">
+<div class="min-h-0 flex-1 bg-slate-50 px-4 py-8">
 	<div class="mx-auto flex w-full max-w-6xl flex-col gap-8">
-		<div class="max-w-lg">
-			<h1 class="text-3xl font-semibold tracking-tight text-slate-900">Lobby</h1>
-		</div>
-
 		{#if data.hasSession}
 			<div class="flex flex-col gap-6">
 				<div
 					class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
 				>
-					<p class="max-w-md text-sm text-emerald-800">
-						Logged in as
-						<strong>{data.user?.name ?? data.user?.email ?? 'your account'}</strong>.
-					</p>
 					<div class="flex flex-wrap items-center gap-2">
 						{#if isStartingGame}
 							<div class="inline-flex items-center gap-2 text-sm text-slate-600" role="status">
@@ -367,16 +363,18 @@
 							<div class="flex flex-wrap items-center gap-2">
 								<button
 									type="button"
-									class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
-									disabled={matchmakingState === 'waiting'}
+									class="inline-flex cursor-pointer items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70 {hasAwaitingOpponent
+										? 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-950'
+										: 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'}"
+									disabled={matchmakingState === 'waiting' || hasAwaitingOpponent}
 									onclick={() => void startNewGame()}
 								>
-									New Game
+									{hasAwaitingOpponent ? 'Awaiting Opponent' : 'New Game'}
 								</button>
 								{#if data.aiOpponentEnabled}
 									<button
 										type="button"
-										class="inline-flex items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-100"
+										class="inline-flex cursor-pointer items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-100"
 										disabled={matchmakingState === 'waiting'}
 										onclick={() => void startNewAiGame()}
 									>
@@ -392,13 +390,8 @@
 					<p class="text-sm text-rose-700">{matchmakingMessage}</p>
 				{/if}
 
-				<div class="grid gap-6 lg:grid-cols-3">
-					<WaitingGamesSection games={data.waitingGames} {formatDate} />
-					<InProgressGamesSection
-						games={data.inProgressGames}
-						{formatDate}
-						{getOpponentLabel}
-					/>
+				<div class="grid gap-6 lg:grid-cols-2">
+					<InProgressGamesSection games={data.inProgressGames} {formatDate} {getOpponentLabel} />
 					<CompletedGamesSection games={data.completedGames} {formatDate} {getOpponentLabel} />
 				</div>
 			</div>

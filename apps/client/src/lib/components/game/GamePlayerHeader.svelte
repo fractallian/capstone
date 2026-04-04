@@ -6,7 +6,10 @@
 		currentTurnIndex,
 		roomStatus,
 		gameMessage,
-		getPlayerLabel
+		getPlayerLabel,
+		vsAi = false,
+		isGameEnded = false,
+		gameOutcome = null
 	}: {
 		player1: { id: string | null; name: string | null; image: string | null } | null;
 		player2: { id: string | null; name: string | null; image: string | null } | null;
@@ -17,78 +20,101 @@
 		getPlayerLabel: (
 			player: { id: string | null; name: string | null; image: string | null } | null
 		) => string;
+		vsAi?: boolean;
+		isGameEnded?: boolean;
+		/** Set when the game ended with a known winner for the viewer. */
+		gameOutcome?: 'win' | 'loss' | null;
 	} = $props();
+
+	let isViewerTurn = $derived(
+		(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+			(viewerPlayerIndex === 2 && currentTurnIndex === 1)
+	);
+
+	let turnBubbleLabel = $derived(
+		isGameEnded
+			? gameOutcome === 'win'
+				? 'You won!'
+				: gameOutcome === 'loss'
+					? 'You lost!'
+					: 'Game over'
+			: isViewerTurn
+				? "It's Your Turn"
+				: vsAi
+					? "AI's Turn"
+					: "Opponent's Turn"
+	);
+
+	let turnBubbleClass = $derived(
+		isGameEnded
+			? gameOutcome === 'win'
+				? 'bg-emerald-50 text-emerald-900 ring-emerald-200'
+				: gameOutcome === 'loss'
+					? 'bg-rose-50 text-rose-900 ring-rose-200'
+					: 'bg-slate-100 text-slate-700 ring-slate-200'
+			: isViewerTurn
+				? 'bg-violet-50 text-violet-950 ring-violet-200'
+				: 'bg-slate-100 text-slate-600 ring-slate-200'
+	);
+
+	let opponent = $derived(viewerPlayerIndex === 1 ? player2 : player1);
+	let opponentSeatLabel = $derived(viewerPlayerIndex === 1 ? 'Player 2' : 'Player 1');
+
+	function opponentInitials(p: typeof opponent) {
+		const label = getPlayerLabel(p);
+		const t = label.trim();
+		if (t.length >= 2) return t.slice(0, 2).toUpperCase();
+		return t.toUpperCase() || '?';
+	}
+
+	let showOpponentOnline = $derived(roomStatus === 'opponent_connected');
 </script>
 
-<div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-	<div class="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+<header class="flex flex-col gap-3">
+	<div class="flex flex-wrap items-center justify-between gap-3">
 		<div
-			class={`relative rounded-lg border bg-violet-50 p-4 ${
-				currentTurnIndex === 0
-					? viewerPlayerIndex === 1
-						? 'border-2 border-emerald-600'
-						: 'border-2 border-slate-500'
-					: 'border-slate-200'
-			}`}
+			class="rounded-xl bg-violet-100 px-4 py-2 text-sm font-semibold tracking-tight text-violet-950 shadow-sm ring-1 ring-violet-200/80"
 		>
-			{#if roomStatus === 'opponent_connected' && viewerPlayerIndex === 2}
-				<span
-					class="absolute top-1/2 right-3 h-3 w-3 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white"
-					aria-label="Opponent connected"
-					title="Opponent connected"
-				></span>
-			{/if}
-			<div class="flex items-center gap-3">
-				{#if player1?.image}
-					<img src={player1.image} alt={getPlayerLabel(player1)} class="h-10 w-10 rounded-full object-cover" />
-				{:else}
-					<div
-						class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-					>
-						{getPlayerLabel(player1).slice(0, 2).toUpperCase()}
-					</div>
-				{/if}
-				<div class="min-w-0">
-					<p class="truncate text-sm font-semibold text-slate-900">{getPlayerLabel(player1)}</p>
-					<p class="text-xs text-slate-600">Player 1</p>
-				</div>
-			</div>
+			You
 		</div>
-		<div class="text-center text-lg font-bold text-slate-500">VS.</div>
+
 		<div
-			class={`relative rounded-lg border bg-amber-50 p-4 ${
-				currentTurnIndex === 1
-					? viewerPlayerIndex === 2
-						? 'border-2 border-emerald-600'
-						: 'border-2 border-slate-500'
-					: 'border-slate-200'
-			}`}
+			class={`rounded-full px-5 py-2 text-center text-sm font-semibold shadow-sm ring-1 ${turnBubbleClass}`}
+			aria-live={isGameEnded ? 'polite' : undefined}
 		>
-			{#if roomStatus === 'opponent_connected' && viewerPlayerIndex === 1}
+			{turnBubbleLabel}
+		</div>
+
+		<div
+			class="relative flex min-w-0 max-w-[min(100%,14rem)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+		>
+			{#if showOpponentOnline}
 				<span
-					class="absolute top-1/2 right-3 h-3 w-3 -translate-y-1/2 rounded-full bg-emerald-500 ring-2 ring-white"
-					aria-label="Opponent connected"
-					title="Opponent connected"
+					class="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
+					aria-label="Opponent active"
+					title="Opponent active"
 				></span>
 			{/if}
-			<div class="flex items-center gap-3">
-				{#if player2?.image}
-					<img src={player2.image} alt={getPlayerLabel(player2)} class="h-10 w-10 rounded-full object-cover" />
-				{:else}
-					<div
-						class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-					>
-						{getPlayerLabel(player2).slice(0, 2).toUpperCase()}
-					</div>
-				{/if}
-				<div class="min-w-0">
-					<p class="truncate text-sm font-semibold text-slate-900">{getPlayerLabel(player2)}</p>
-					<p class="text-xs text-slate-600">Player 2</p>
+			{#if opponent?.image}
+				<img
+					src={opponent.image}
+					alt={getPlayerLabel(opponent)}
+					class="h-11 w-11 shrink-0 rounded-full object-cover"
+				/>
+			{:else}
+				<div
+					class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-900 ring-1 ring-amber-200/80"
+				>
+					{opponentInitials(opponent)}
 				</div>
+			{/if}
+			<div class="min-w-0 pr-1">
+				<p class="truncate text-sm font-semibold text-slate-900">{getPlayerLabel(opponent)}</p>
+				<p class="text-xs text-slate-500">{opponentSeatLabel}</p>
 			</div>
 		</div>
 	</div>
 	{#if gameMessage}
-		<p class="mt-2 text-sm text-rose-700">{gameMessage}</p>
+		<p class="text-sm text-rose-700">{gameMessage}</p>
 	{/if}
-</div>
+</header>

@@ -23,16 +23,19 @@
 </div>
 
 <style>
+	/* Rows match board cell size via --cell from .game (container query). */
 	.pool {
 		width: 100%;
-		height: 100%;
+		height: fit-content;
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		grid-template-rows: repeat(3, minmax(0, 1fr));
+		grid-template-rows: repeat(3, var(--cell, 4rem));
 	}
 
 	.pool__cell {
 		width: 100%;
 		height: 100%;
+		min-width: 0;
+		min-height: 0;
 	}
 </style>

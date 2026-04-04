@@ -64,7 +64,13 @@
 	let boardStacks = $derived(interactiveStacks.slice(0, 16));
 	let player1PoolStacks = $derived(interactiveStacks.slice(16, 19));
 	let player2PoolStacks = $derived(interactiveStacks.slice(19, 22));
-	let viewerColor = $derived(viewerPlayerIndex === 1 ? 'Purple' : 'Gold');
+	/** Viewer always on the left (matches board mock); stack indices stay server-correct. */
+	let viewerPoolStacks = $derived(
+		viewerPlayerIndex === 1 ? player1PoolStacks : player2PoolStacks
+	);
+	let opponentPoolStacks = $derived(
+		viewerPlayerIndex === 1 ? player2PoolStacks : player1PoolStacks
+	);
 	let localCurrentTurnIndex = $derived(localGame.currentTurnIndex());
 	let isViewerTurn = $derived(
 		(viewerPlayerIndex === 1 && localCurrentTurnIndex === 0) ||
@@ -74,9 +80,6 @@
 		`${JSON.stringify(localMoves)}|${interactiveStacks
 			.map((stack) => `${stack.stackIndex}:${stack.isTopPieceDraggable ? '1' : '0'}`)
 			.join('|')}`
-	);
-	let currentTurnLabel = $derived(
-		`You are Player${viewerPlayerIndex} (${viewerColor}). It's ${isViewerTurn ? 'your' : "your opponent's"} turn.`
 	);
 
 	function isMoveLegal(fromStackIndex: number, toStackIndex: number): boolean {
@@ -98,6 +101,7 @@
 		target.dataset.x = '0';
 		target.dataset.y = '0';
 		target.classList.remove('stack__layer--dragging');
+		gameElement?.classList.remove('game--drag-from-pool', 'game--drag-from-board');
 	}
 
 	function clearDropHoverClasses(el: HTMLElement) {
@@ -123,6 +127,12 @@
 					listeners: {
 						start(event) {
 							event.target.classList.add('stack__layer--dragging');
+							const stack = (event.target as HTMLElement).closest<HTMLElement>('.stack');
+							const idx = Number(stack?.dataset.stackIndex);
+							if (root && Number.isInteger(idx)) {
+								root.classList.toggle('game--drag-from-pool', idx >= 16);
+								root.classList.toggle('game--drag-from-board', idx < 16);
+							}
 						},
 						move(event) {
 							const target = event.target as HTMLElement;
@@ -207,16 +217,10 @@
 </script>
 
 <div class={`game ${className ?? ''}`.trim()} bind:this={gameElement}>
-	<div class="game__status">
-		<span class={`game__turn ${isViewerTurn ? 'game__turn--active' : ''}`.trim()}>
-			{currentTurnLabel}
-		</span>
-	</div>
-
 	<div
-		class={`game__pool game__pool--left ${localCurrentTurnIndex === 0 ? 'game__pool--active' : ''}`.trim()}
+		class={`game__pool game__pool--viewer ${isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
 	>
-		<Pool stacks={player1PoolStacks} />
+		<Pool stacks={viewerPoolStacks} />
 	</div>
 
 	<div class="game__board">
@@ -224,63 +228,97 @@
 	</div>
 
 	<div
-		class={`game__pool game__pool--right ${localCurrentTurnIndex === 1 ? 'game__pool--active' : ''}`.trim()}
+		class={`game__pool game__pool--opponent ${!isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
 	>
-		<Pool stacks={player2PoolStacks} />
+		<Pool stacks={opponentPoolStacks} />
 	</div>
 </div>
 
 <style>
+	/*
+	 * 1fr + 4fr + 1fr columns ⇒ side width = (W − gaps) / 6 = one board cell.
+	 * --cell sizes pool rows to match board cells; shared with Pool via inheritance.
+	 */
 	.game {
 		width: 100%;
 		height: 100%;
+		container-type: inline-size;
+		container-name: capstone-game;
+		--col-gap: clamp(0.75rem, 3vw, 1.75rem);
+		--cell: calc((100cqw - 2 * var(--col-gap)) / 6);
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 4fr) minmax(0, 1fr);
-		grid-template-rows: auto minmax(0, 1fr);
-		column-gap: 1.5rem;
-		row-gap: 0;
-		align-items: stretch;
-	}
-
-	.game__status {
-		grid-column: 1 / -1;
-		display: flex;
-		justify-content: center;
-		padding-bottom: 0.75rem;
-	}
-
-	.game__turn {
-		border-radius: 9999px;
-		background: rgb(241 245 249);
-		color: rgb(15 23 42);
-		font-size: 0.875rem;
-		font-weight: 600;
-		line-height: 1.25rem;
-		padding: 0.375rem 0.75rem;
-	}
-
-	.game__turn--active {
-		background: rgb(220 252 231);
+		grid-template-columns: 1fr 4fr 1fr;
+		column-gap: var(--col-gap);
+		align-items: center;
+		justify-items: stretch;
+		min-width: 0;
 	}
 
 	.game__board {
+		position: relative;
+		z-index: 1;
 		width: 100%;
-		height: 100%;
+		min-width: 0;
+		aspect-ratio: 1 / 1;
+		justify-self: stretch;
+		align-self: center;
 	}
 
 	.game--inactive .game__board {
-		background: rgb(105, 107, 109);
-		border-radius: 0.75rem;
+		opacity: 0.55;
+		filter: grayscale(0.15);
 	}
 
 	.game__pool {
+		position: relative;
+		z-index: 1;
 		width: 100%;
-		height: 100%;
-		border-radius: 0.75rem;
+		min-width: 0;
+		align-self: center;
+		justify-self: stretch;
 	}
 
-	.game__pool--active {
-		border: 2px solid rgb(51 65 85);
-		background: rgba(248 250 252 / 0.5);
+	/* Stack pools above the board only while dragging from a pool (DOM order would hide the piece). */
+	.game--drag-from-pool .game__pool {
+		z-index: 5;
+	}
+	.game--drag-from-pool .game__board {
+		z-index: 0;
+	}
+
+	/* Stack the board above pools while dragging from the board (e.g. toward a pool). */
+	.game--drag-from-board .game__board {
+		z-index: 5;
+	}
+	.game--drag-from-board .game__pool {
+		z-index: 0;
+	}
+
+	/*
+	 * Real border + overflow clip — spread box-shadow borders often gap at border-radius
+	 * on some GPUs. 1px border + border-box keeps pool width on the same grid track.
+	 */
+	.game__pool--viewer {
+		box-sizing: border-box;
+		border: 1px solid rgb(30 41 59);
+		border-radius: 0.5rem;
+		background: rgb(255 255 255);
+		/* visible so dragged pieces aren’t clipped over the board; border-radius still frames the pool */
+		overflow: visible;
+		box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+	}
+
+	.game__pool--viewer.game__pool--turn {
+		border-color: rgb(124 58 237);
+		box-shadow: 0 1px 3px rgb(124 58 237 / 0.2);
+	}
+
+	/* Opponent pool: open layout, no box */
+	.game__pool--opponent {
+		padding: 0.25rem 0;
+	}
+
+	.game__pool--opponent.game__pool--turn {
+		filter: drop-shadow(0 0 0.35rem rgb(245 158 11 / 0.35));
 	}
 </style>
