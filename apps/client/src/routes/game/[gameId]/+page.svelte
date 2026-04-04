@@ -152,6 +152,19 @@
 	});
 	let movesSyncKey = $derived(JSON.stringify(getMoves(liveSnapshot)));
 
+	let showWinConfetti = $derived(gameOutcome === 'win');
+
+	/** Stable layout; avoids random() in $derived re-running every tick. */
+	const confettiPieces = Array.from({ length: 36 }, (_, i) => ({
+		id: i,
+		left: `${((i * 37) % 100) + (i % 3) * 0.7}%`,
+		delay: `${(i % 10) * 0.12}s`,
+		duration: `${2.2 + (i % 6) * 0.2}s`,
+		size: `${7 + (i % 4) * 2}px`,
+		rotation: `${(i * 41) % 360}deg`,
+		color: ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#a855f7', '#f97316'][i % 6]
+	}));
+
 	function sendMove(from: number, to: number) {
 		const poolIndex = Number(from);
 		const boardIndex = Number(to);
@@ -396,16 +409,54 @@
 				!isGameEnded && !isViewerTurn ? 'opacity-[0.92]' : ''
 			}`}
 		>
-			<div class="mx-auto min-h-[min(58vh,22rem)] w-full">
-				<GameComponent
-					class={!isGameEnded && !isViewerTurn ? 'game--inactive' : ''}
-					moves={getMoves(liveSnapshot)}
-					{movesSyncKey}
-					{viewerPlayerIndex}
-					{canInteract}
-					onMove={handleBoardMove}
-				/>
+			<div
+				class="relative isolate mx-auto min-h-[min(58vh,22rem)] w-full overflow-hidden rounded-lg"
+			>
+				{#if showWinConfetti}
+					<div
+						class="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+						aria-hidden="true"
+					>
+						{#each confettiPieces as piece (piece.id)}
+							<span
+								class="confetti-piece"
+								style={`left:${piece.left}; width:${piece.size}; height:${piece.size}; background:${piece.color}; animation-delay:${piece.delay}; animation-duration:${piece.duration}; transform:rotate(${piece.rotation});`}
+							></span>
+						{/each}
+					</div>
+				{/if}
+				<div class="relative z-[1] min-h-[min(58vh,22rem)] w-full">
+					<GameComponent
+						class={!isGameEnded && !isViewerTurn ? 'game--inactive' : ''}
+						moves={getMoves(liveSnapshot)}
+						{movesSyncKey}
+						{viewerPlayerIndex}
+						{canInteract}
+						onMove={handleBoardMove}
+					/>
+				</div>
 			</div>
 		</div>
 	</section>
 </div>
+
+<style>
+	.confetti-piece {
+		position: absolute;
+		top: -10%;
+		border-radius: 2px;
+		opacity: 0.9;
+		animation-name: confetti-fall;
+		animation-timing-function: linear;
+		animation-iteration-count: infinite;
+	}
+
+	@keyframes confetti-fall {
+		0% {
+			transform: translate3d(0, -10%, 0) rotate(0deg);
+		}
+		100% {
+			transform: translate3d(0, 120vh, 0) rotate(560deg);
+		}
+	}
+</style>
