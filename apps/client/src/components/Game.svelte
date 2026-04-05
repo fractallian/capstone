@@ -216,39 +216,59 @@
 	});
 </script>
 
-<div class={`game ${className ?? ''}`.trim()} bind:this={gameElement}>
-	<div
-		class={`game__pool game__pool--viewer ${isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
-	>
-		<Pool stacks={viewerPoolStacks} />
-	</div>
+<div class="game-viewport">
+	<div class={`game ${className ?? ''}`.trim()} bind:this={gameElement}>
+		<div
+			class={`game__pool game__pool--viewer ${isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
+		>
+			<Pool stacks={viewerPoolStacks} />
+		</div>
 
-	<div class="game__board">
-		<Board stacks={boardStacks} />
-	</div>
+		<div class="game__board">
+			<Board stacks={boardStacks} />
+		</div>
 
-	<div
-		class={`game__pool game__pool--opponent ${!isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
-	>
-		<Pool stacks={opponentPoolStacks} />
+		<div
+			class={`game__pool game__pool--opponent ${!isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
+		>
+			<Pool stacks={opponentPoolStacks} />
+		</div>
 	</div>
 </div>
 
 <style>
 	/*
-	 * 1fr + 4fr + 1fr columns ⇒ side width = (W − gaps) / 6 = one board cell.
-	 * --cell sizes pool rows to match board cells; shared with Pool via inheritance.
+	 * Outer anchor supplies both cqw & cqh. --cell is the smaller of:
+	 * - width fit: (W − gaps) / 6 (pool column = one board cell)
+	 * - height fit: board is 4 cells tall ⇒ (H − pad) / 4
 	 */
-	.game {
+	.game-viewport {
+		container-type: size;
+		container-name: capstone-game;
 		width: 100%;
 		height: 100%;
-		container-type: inline-size;
-		container-name: capstone-game;
-		--col-gap: clamp(0.75rem, 3vw, 1.75rem);
-		--cell: calc((100cqw - 2 * var(--col-gap)) / 6);
+		min-width: 0;
+		min-height: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.game {
+		box-sizing: border-box;
+		--col-gap: clamp(0.75rem, 2vw, 1.75rem);
+		--pad-v: 0.375rem;
+		--cell-from-w: calc((100cqw - 2 * var(--col-gap)) / 6);
+		--cell-from-h: calc((100cqh - 2 * var(--pad-v)) / 4);
+		--cell: min(var(--cell-from-w), var(--cell-from-h));
 		display: grid;
-		grid-template-columns: 1fr 4fr 1fr;
+		grid-template-columns: var(--cell) calc(4 * var(--cell)) var(--cell);
 		column-gap: var(--col-gap);
+		width: calc(6 * var(--cell) + 2 * var(--col-gap));
+		max-width: 100%;
+		height: calc(4 * var(--cell));
+		max-height: 100%;
+		margin-inline: auto;
 		align-items: center;
 		justify-items: stretch;
 		min-width: 0;
@@ -260,6 +280,7 @@
 		width: 100%;
 		min-width: 0;
 		aspect-ratio: 1 / 1;
+		max-height: 100%;
 		justify-self: stretch;
 		align-self: center;
 	}

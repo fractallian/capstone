@@ -396,8 +396,8 @@
 	});
 </script>
 
-<div class="min-h-0 flex-1 bg-slate-50 px-4 py-8">
-	<section class="mx-auto flex w-full max-w-none flex-col gap-5">
+<div class="flex min-h-0 flex-1 flex-col bg-slate-50 px-4 py-8">
+	<section class="mx-auto flex min-h-0 w-full max-w-none flex-1 flex-col gap-5">
 		<GamePlayerHeader
 			{player1}
 			{player2}
@@ -412,12 +412,12 @@
 		/>
 
 		<div
-			class={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-opacity sm:p-5 ${
+			class={`flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-opacity sm:p-5 ${
 				!isGameEnded && !isViewerTurn ? 'opacity-[0.92]' : ''
 			}`}
 		>
 			<div
-				class="relative isolate mx-auto min-h-[min(58vh,22rem)] w-full overflow-hidden rounded-lg"
+				class="relative isolate mx-auto flex min-h-0 w-full max-h-[calc(100dvh-13rem)] flex-1 overflow-hidden rounded-lg"
 			>
 				{#if showWinConfetti}
 					<div
@@ -432,7 +432,7 @@
 						{/each}
 					</div>
 				{/if}
-				<div class="relative z-[1] min-h-[min(58vh,22rem)] w-full">
+				<div class="relative z-1 flex min-h-0 min-w-0 flex-1">
 					<GameComponent
 						class={!isGameEnded && !isViewerTurn ? 'game--inactive' : ''}
 						moves={getMoves(liveSnapshot)}
