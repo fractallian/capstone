@@ -3,8 +3,13 @@ import { env } from "$env/dynamic/private";
 import { env as publicEnv } from "$env/dynamic/public";
 import { CapstoneRoom } from "./capstone-room";
 
+export {
+	clearCurrentGameForUser,
+	getCurrentGameForUser,
+	setCurrentGameForUser
+} from "./current-game-for-user";
+
 let serverReady: Promise<void> | null = null;
-const currentGameByUserId = new Map<string, string>();
 
 export function getColyseusPort(): number {
 	return Number(env.COLYSEUS_PORT ?? 2567);
@@ -22,18 +27,6 @@ export function getColyseusPublicUrl(requestUrl?: URL): string {
 	}
 
 	return `ws://localhost:${getColyseusPort()}`;
-}
-
-export function setCurrentGameForUser(userId: string, gameId: string): void {
-	currentGameByUserId.set(userId, gameId);
-}
-
-export function clearCurrentGameForUser(userId: string): void {
-	currentGameByUserId.delete(userId);
-}
-
-export function getCurrentGameForUser(userId: string): string | null {
-	return currentGameByUserId.get(userId) ?? null;
 }
 
 export function ensureRealtimeServer(): Promise<void> {

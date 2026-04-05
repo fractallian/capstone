@@ -1,12 +1,18 @@
-import { gameCommandSchema, gameSnapshotSchema, type GameSnapshot } from '@capstone/contracts';
+import { gameCommandSchema, type GameSnapshot } from '@capstone/contracts';
 import { eq } from 'drizzle-orm';
 import { Room, type Client } from 'colyseus';
-import { Game, InvalidMoveError, listLegalMoves, type SerializedMove } from '@capstone/game-logic';
+import { Game } from '@capstone/game-logic';
 import { randomUUID } from 'node:crypto';
-import { getGameMoveProvider } from '$lib/server/ai';
+import {
+	applyHumanMakeMoveCommand,
+	buildCapstoneSnapshot,
+	loadCapstoneSnapshotFromDb,
+	persistCapstoneSnapshot,
+	type SnapshotMeta
+} from '$lib/server/game/capstone-move-pipeline';
 import { db } from '$lib/server/db';
 import { boardState, game } from '$lib/server/db/schema';
-import { clearCurrentGameForUser, setCurrentGameForUser } from './server';
+import { setCurrentGameForUser } from './current-game-for-user';
 
 interface JoinOptions {
 	userId?: string;
@@ -30,32 +36,25 @@ export class CapstoneRoom extends Room {
 	private playerIndexBySessionId = new Map<string, 0 | 1>();
 	private playerUserIdByIndex = new Map<0 | 1, string>();
 
-	private buildSnapshot(): GameSnapshot {
+	private getSnapshotMeta(): SnapshotMeta {
 		return {
-			moves: this.game.serialize(),
-			currentTurnIndex: this.game.currentTurnIndex(),
+			gameEnded: this.gameEnded,
 			winnerPlayerId: this.winnerPlayerId,
-			winnerSeatIndex: this.gameEnded ? this.winnerSeatIndex : null,
-			endedAt: this.endedAt ? this.endedAt.toISOString() : null
+			winnerSeatIndex: this.winnerSeatIndex,
+			endedAt: this.endedAt
 		};
 	}
 
-	private async persistSnapshot(snapshot: GameSnapshot) {
-		await db.insert(boardState).values({
-			id: randomUUID(),
-			gameId: this.gameId,
-			board: snapshot
-		});
+	private applySnapshotMetaPatch(patch: Partial<SnapshotMeta>): void {
+		if (patch.gameEnded !== undefined) this.gameEnded = patch.gameEnded;
+		if (patch.winnerPlayerId !== undefined) this.winnerPlayerId = patch.winnerPlayerId;
+		if (patch.winnerSeatIndex !== undefined) this.winnerSeatIndex = patch.winnerSeatIndex;
+		if (patch.endedAt !== undefined) this.endedAt = patch.endedAt;
 	}
 
 	private async loadLatestSnapshot(): Promise<GameSnapshot> {
-		const latestBoardState = await db.query.boardState.findFirst({
-			where: (table, { eq }) => eq(table.gameId, this.gameId),
-			orderBy: (table, { desc }) => [desc(table.createdAt)]
-		});
-
-		const parsed = gameSnapshotSchema.safeParse(latestBoardState?.board);
-		return parsed.success ? parsed.data : this.buildSnapshot();
+		const fallback = buildCapstoneSnapshot(this.game, this.getSnapshotMeta());
+		return loadCapstoneSnapshotFromDb(this.gameId, fallback);
 	}
 
 	private async ensurePersistedGame() {
@@ -90,7 +89,10 @@ export class CapstoneRoom extends Room {
 			startedAt: new Date()
 		});
 
-		await this.persistSnapshot(this.buildSnapshot());
+		await persistCapstoneSnapshot(
+			this.gameId,
+			buildCapstoneSnapshot(this.game, this.getSnapshotMeta())
+		);
 		this.gamePersisted = true;
 		await this.setMetadata({ gameId: this.gameId, needsOpponent: !player2Id && !this.vsAi });
 	}
@@ -182,81 +184,6 @@ export class CapstoneRoom extends Room {
 		});
 	}
 
-	private async finishGameIfWon(): Promise<void> {
-		const winner = this.game.board.winner();
-		if (!winner) return;
-
-		const winnerSeat: 0 | 1 = winner === this.game.player1 ? 0 : 1;
-		const winnerPlayerId = this.playerUserIdByIndex.get(winnerSeat) ?? null;
-
-		this.gameEnded = true;
-		this.winnerSeatIndex = winnerSeat;
-		this.winnerPlayerId = winnerPlayerId;
-		this.endedAt = new Date();
-
-		await db
-			.update(game)
-			.set({
-				endedAt: this.endedAt,
-				winnerPlayerId
-			})
-			.where(eq(game.id, this.gameId));
-
-		// Prevent matchmaking from placing players back into completed rooms.
-		this.lock();
-
-		// Completed games should no longer be treated as each user's "current game".
-		const player1Id = this.playerUserIdByIndex.get(0);
-		const player2Id = this.playerUserIdByIndex.get(1);
-		if (player1Id) clearCurrentGameForUser(player1Id);
-		if (player2Id) clearCurrentGameForUser(player2Id);
-	}
-
-	private pickRandomMove<T extends { from: number; to: number }>(legalMoves: T[]): T {
-		return legalMoves[Math.floor(Math.random() * legalMoves.length)]!;
-	}
-
-	private async applyAiOpponentTurn(): Promise<void> {
-		if (!this.vsAi || this.gameEnded) return;
-		const aiSeat: 0 | 1 = 1;
-		if (this.game.currentTurnIndex() !== aiSeat) return;
-
-		const legalMoves = listLegalMoves(this.game);
-		if (legalMoves.length === 0) return;
-
-		let chosen = this.pickRandomMove(legalMoves);
-		const provider = getGameMoveProvider();
-		if (provider) {
-			try {
-				chosen = await provider.chooseMove({
-					moves: this.game.serialize(),
-					currentTurnIndex: this.game.currentTurnIndex(),
-					legalMoves
-				});
-			} catch (err) {
-				console.warn('[capstone:cpu-move] provider failed; falling back to random legal move:', err);
-				chosen = this.pickRandomMove(legalMoves);
-			}
-		}
-
-		const stillLegal = legalMoves.some(
-			(m: SerializedMove) => m.from === chosen.from && m.to === chosen.to
-		);
-		if (!stillLegal) {
-			chosen = legalMoves[0]!;
-		}
-
-		this.game.makeMove(this.game.stacks[chosen.from], this.game.stacks[chosen.to]);
-		await this.finishGameIfWon();
-		await this.persistSnapshot(this.buildSnapshot());
-
-		this.broadcast('event', {
-			type: 'state_sync',
-			gameId: this.gameId,
-			snapshot: await this.loadLatestSnapshot()
-		});
-	}
-
 	async onCreate(options?: JoinOptions) {
 		if (options?.gameId) {
 			this.gameId = options.gameId;
@@ -294,8 +221,48 @@ export class CapstoneRoom extends Room {
 				return;
 			}
 
-			try {
-				if (!this.gamePersisted) {
+			const playerIndex = this.playerIndexBySessionId.get(client.sessionId);
+			if (playerIndex === undefined) {
+				client.send('event', {
+					type: 'invalid_move',
+					message: 'You are not seated in this game.',
+					errors: ['not seated']
+				});
+				return;
+			}
+
+			const result = await applyHumanMakeMoveCommand({
+				gameId: this.gameId,
+				game: this.game,
+				from: command.from,
+				to: command.to,
+				gamePersisted: this.gamePersisted,
+				gameEnded: this.gameEnded,
+				playerIndex,
+				vsAi: this.vsAi,
+				playerUserIdByIndex: this.playerUserIdByIndex,
+				lockRoom: () => this.lock(),
+				getSnapshotMeta: () => this.getSnapshotMeta(),
+				setSnapshotMeta: (patch) => this.applySnapshotMetaPatch(patch),
+				broadcastStateSync: (snapshot) =>
+					this.broadcast('event', {
+						type: 'state_sync',
+						gameId: this.gameId,
+						snapshot
+					})
+			});
+
+			if (!result.ok) {
+				const err = result.error;
+				if (err.kind === 'invalid_move') {
+					client.send('event', {
+						type: 'invalid_move',
+						message: err.message,
+						errors: err.errors
+					});
+					return;
+				}
+				if (err.kind === 'game_not_started') {
 					client.send('event', {
 						type: 'invalid_move',
 						message: 'Game has not started yet.',
@@ -303,8 +270,7 @@ export class CapstoneRoom extends Room {
 					});
 					return;
 				}
-
-				if (this.gameEnded) {
+				if (err.kind === 'game_ended') {
 					client.send('event', {
 						type: 'invalid_move',
 						message: 'This game has already ended.',
@@ -312,48 +278,12 @@ export class CapstoneRoom extends Room {
 					});
 					return;
 				}
-
-				const playerIndex = this.playerIndexBySessionId.get(client.sessionId);
-				if (playerIndex === undefined) {
-					client.send('event', {
-						type: 'invalid_move',
-						message: 'You are not seated in this game.',
-						errors: ['not seated']
-					});
-					return;
-				}
-
-				const expectedPlayer = playerIndex === 0 ? this.game.player1 : this.game.player2;
-				if (this.game.currentTurn !== expectedPlayer) {
-					client.send('event', {
-						type: 'invalid_move',
-						message: "It's not your turn.",
-						errors: ['not your turn']
-					});
-					return;
-				}
-
-				this.game.makeMove(this.game.stacks[command.from], this.game.stacks[command.to]);
-				await this.finishGameIfWon();
-				await this.persistSnapshot(this.buildSnapshot());
-
-				this.broadcast('event', {
-					type: 'state_sync',
-					gameId: this.gameId,
-					snapshot: await this.loadLatestSnapshot()
-				});
-
-				if (!this.gameEnded) {
-					await this.applyAiOpponentTurn();
-				}
-			} catch (error) {
-				const message = error instanceof InvalidMoveError ? error.message : 'Move failed.';
-				const errors = error instanceof InvalidMoveError ? error.errors : ['move failed'];
 				client.send('event', {
 					type: 'invalid_move',
-					message,
-					errors
+					message: "It's not your turn.",
+					errors: ['not your turn']
 				});
+				return;
 			}
 		});
 	}
@@ -450,7 +380,7 @@ export class CapstoneRoom extends Room {
 			client.send('event', {
 				type: 'state_sync',
 				gameId: this.gameId,
-				snapshot: this.buildSnapshot()
+				snapshot: buildCapstoneSnapshot(this.game, this.getSnapshotMeta())
 			});
 			this.broadcastPresence();
 			return;

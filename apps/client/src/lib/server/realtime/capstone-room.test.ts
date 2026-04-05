@@ -49,7 +49,7 @@ vi.mock('$lib/server/db', () => ({
 	}
 }));
 
-vi.mock('./server', () => ({
+vi.mock('./current-game-for-user', () => ({
 	setCurrentGameForUser: setCurrentGameForUserMock,
 	clearCurrentGameForUser: clearCurrentGameForUserMock
 }));
