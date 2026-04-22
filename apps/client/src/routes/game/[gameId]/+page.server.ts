@@ -1,11 +1,9 @@
-import { env } from '$env/dynamic/private';
 import { error, redirect } from '@sveltejs/kit';
 import { and, desc, eq, or } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { boardState, game, user } from '$lib/server/db/schema';
-import { getColyseusPublicUrl } from '$lib/server/realtime/server';
 
-export const load = async ({ locals, params, url }) => {
+export const load = async ({ locals, params }) => {
 	if (!locals.session || !locals.user) {
 		throw redirect(302, '/');
 	}
@@ -16,6 +14,7 @@ export const load = async ({ locals, params, url }) => {
 		db.query.game.findFirst({
 			where: and(
 				eq(game.id, requestedGameId),
+				// vsSelf games only have player1Id — allow the owner to view via player1Id alone
 				or(eq(game.player1Id, locals.user.id), eq(game.player2Id, locals.user.id))
 			)
 		}),
@@ -33,6 +32,8 @@ export const load = async ({ locals, params, url }) => {
 		throw error(404, 'Game not found');
 	}
 
+	const vsSelf = Boolean(currentGame.vsSelf);
+
 	const [player1, player2] = await Promise.all([
 		db.query.user.findFirst({
 			where: eq(user.id, currentGame.player1Id),
@@ -47,10 +48,10 @@ export const load = async ({ locals, params, url }) => {
 	]);
 
 	return {
-		colyseusUrl: getColyseusPublicUrl(url),
 		gameId: requestedGameId,
 		gameState: latestBoardState.board,
 		vsAi: Boolean(currentGame.vsAi),
+		vsSelf,
 		viewerPlayerIndex: currentGame.player1Id === locals.user.id ? 1 : 2,
 		viewerUserId: locals.user.id,
 		player1: player1 ?? {
@@ -59,7 +60,9 @@ export const load = async ({ locals, params, url }) => {
 			image: null
 		},
 		player2: currentGame.vsAi
-			? { id: null, name: 'AI opponent', image: null }
-			: (player2 ?? null)
+			? { id: null, name: 'CPU', image: null }
+			: vsSelf
+				? { id: null, name: 'You (Seat 2)', image: null }
+				: (player2 ?? null)
 	};
 };

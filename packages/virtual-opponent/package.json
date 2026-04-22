@@ -9,7 +9,7 @@
 	"scripts": {
 		"build": "tsc",
 		"check": "tsc --noEmit",
-		"test": "vitest",
+		"test": "vitest run",
 		"test:run": "vitest run",
 		"lint": "prettier --check \"src/**/*.{ts,json}\" \"*.{ts,json}\""
 	},

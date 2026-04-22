@@ -1,29 +1,14 @@
 <script lang="ts">
-	import {
-		type GameServerEvent,
-		type GameSnapshot,
-		type MakeMoveCommand
-	} from '@capstone/contracts';
-	import { dev } from '$app/environment';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { getAuthClient } from '$lib/auth-client';
-	import { Game } from '@capstone/game-logic';
-	import { Client, type Room } from 'colyseus.js';
 	import { onMount } from 'svelte';
 	import CompletedGamesSection from '$lib/components/lobby/CompletedGamesSection.svelte';
 	import InProgressGamesSection from '$lib/components/lobby/InProgressGamesSection.svelte';
-	import {
-		appendRecentEvent,
-		parseGameEvent,
-		setDebugHelpers,
-		setDebugRoom,
-		type CapstoneDebug
-	} from '$lib/realtime/client-events';
+
 	let {
 		data
 	}: {
 		data: {
-			colyseusUrl: string;
 			inProgressGames: {
 				id: string;
 				opponent: { id: string; name: string | null; image: string | null } | null;
@@ -47,6 +32,7 @@
 			}[];
 			githubLoginEnabled: boolean;
 			aiOpponentEnabled: boolean;
+			vsSelfEnabled: boolean;
 			hasSession: boolean;
 			user: { id: string; name: string | null; email: string | null } | null;
 		};
@@ -55,18 +41,10 @@
 	let isSigningIn = $state(false);
 	let isSigningOut = $state(false);
 	let isStartingGame = $state(false);
-	let matchmakingState = $state<'idle' | 'waiting' | 'matched' | 'failed'>('idle');
+	let isAwaitingOpponentOptimistic = $state(false);
 	let matchmakingMessage = $state<string | null>(null);
-	let room: Room | null = null;
 
-	let debugLastEvent: GameServerEvent | null = null;
-	let debugLastSnapshot: GameSnapshot | null = null;
-	let debugEvents: GameServerEvent[] = [];
-	let debugSyncSeq = 0;
-	let debugGame: Game | null = null;
-	let debugGameSeq = -1;
-
-	let hasAwaitingOpponent = $derived(data.waitingGames.length > 0);
+	let hasAwaitingOpponent = $derived(data.waitingGames.length > 0 || isAwaitingOpponentOptimistic);
 
 	function formatDate(value: string) {
 		return new Intl.DateTimeFormat(undefined, {
@@ -83,112 +61,6 @@
 		return opponent.name?.trim() || `Player ${fallback}`;
 	}
 
-	function attachDebugHelpers(currentRoom: Room | null) {
-		if (!dev || typeof window === 'undefined') return;
-		setDebugHelpers({
-			room: currentRoom,
-			getRoomId: () => currentRoom?.roomId ?? null,
-			getSyncSeq: () => debugSyncSeq,
-			game: debugGame,
-			getGame: () => debugGame,
-			lastEvent: debugLastEvent,
-			lastSnapshot: debugLastSnapshot,
-			events: debugEvents,
-			getSnapshot: () => debugLastSnapshot,
-			getMoves: () => debugLastSnapshot?.moves ?? [],
-			// Friendly args:
-			// - from: pool stack index (0-2) of the *current turn* player
-			// - to: board stack index (0-15)
-			sendMove: (from: number, to: number) => {
-				const poolIndex = Number(from);
-				const boardIndex = Number(to);
-
-				const game = debugGame;
-				if (!game) throw new Error('No hydrated game snapshot yet.');
-
-				const fromStackIndex = game.currentTurn.pool.stacks[poolIndex]?.index;
-				if (fromStackIndex === undefined) {
-					throw new Error(`Invalid pool index ${poolIndex}. Expected 0-2.`);
-				}
-				if (!Number.isInteger(boardIndex) || boardIndex < 0 || boardIndex > 15) {
-					throw new Error(`Invalid board index ${boardIndex}. Expected 0-15.`);
-				}
-
-				const command: MakeMoveCommand = {
-					type: 'make_move',
-					from: fromStackIndex,
-					to: boardIndex
-				};
-				currentRoom?.send('command', command);
-			},
-			awaitNextSync: async (timeoutMs = 5000) => {
-				if (!currentRoom) throw new Error('No room connected.');
-				const startSeq = debugSyncSeq;
-
-				return await new Promise<GameSnapshot>((resolve, reject) => {
-					const timeoutId = setTimeout(() => {
-						unsub();
-						reject(new Error('Timed out waiting for state_sync.'));
-					}, timeoutMs);
-
-					const unsub = currentRoom.onMessage('event', (payload: unknown) => {
-						const event = parseGameEvent(payload);
-						if (!event || event.type !== 'state_sync') return;
-						if (debugSyncSeq <= startSeq) return;
-						clearTimeout(timeoutId);
-						unsub();
-						resolve(event.snapshot);
-					});
-				});
-			},
-			sendMoveAndWait: async (from: number, to: number, timeoutMs = 5000) => {
-				const startSeq = debugSyncSeq;
-				(window as Window & { __capstoneDebug?: CapstoneDebug }).__capstoneDebug?.sendMove(
-					from,
-					to
-				);
-				const snapshot = await (
-					window as Window & { __capstoneDebug?: CapstoneDebug }
-				).__capstoneDebug?.awaitNextSync(timeoutMs);
-				if (!snapshot) throw new Error('No snapshot received.');
-				// Ensure this was actually a new sync (not initial state).
-				if (debugSyncSeq <= startSeq) throw new Error('No new state_sync received.');
-				return snapshot;
-			},
-			joinByRoomId: async (roomId: string) => {
-				if (!data.user) return;
-				const client = new Client(data.colyseusUrl);
-				const joined = await client.joinById(roomId, { userId: data.user.id });
-				room = joined;
-				wireRoom(joined, { navigateOnWaiting: true });
-			},
-			clearEvents: () => {
-				debugEvents = [];
-				attachDebugHelpers(currentRoom);
-			}
-		});
-	}
-
-	function trackDebugEvent(event: GameServerEvent) {
-		debugLastEvent = event;
-		if (event.type === 'state_sync') {
-			debugLastSnapshot = event.snapshot;
-			debugSyncSeq += 1;
-
-			if (debugGameSeq !== debugSyncSeq) {
-				debugGame = Game.deserialize(event.snapshot.moves);
-				debugGameSeq = debugSyncSeq;
-			}
-		}
-		debugEvents = appendRecentEvent(debugEvents, event);
-	}
-
-	function exposeRoomForDev(currentRoom: Room | null) {
-		if (!dev || typeof window === 'undefined') return;
-		setDebugRoom(currentRoom);
-		attachDebugHelpers(currentRoom);
-	}
-
 	async function signInWithGitHub() {
 		isSigningIn = true;
 		try {
@@ -196,8 +68,6 @@
 				provider: 'github',
 				callbackURL: '/'
 			});
-			// Keep loading state active while redirect/session propagation completes.
-			// The page will naturally refresh into the logged-in state.
 		} catch {
 			isSigningIn = false;
 		}
@@ -213,124 +83,80 @@
 		}
 	}
 
-	function wireRoom(
-		currentRoom: Room,
-		options: { navigateOnWaiting: boolean } = { navigateOnWaiting: true }
-	) {
-		exposeRoomForDev(currentRoom);
-		currentRoom.onLeave(() => {
-			if (room === currentRoom) {
-				room = null;
-			}
-			exposeRoomForDev(null);
-		});
-
-		currentRoom.onMessage('event', (payload: unknown) => {
-			const event = parseGameEvent(payload);
-			if (!event) {
-				matchmakingState = 'failed';
-				matchmakingMessage = 'Received unexpected realtime event.';
-				return;
-			}
-			trackDebugEvent(event);
-			attachDebugHelpers(currentRoom);
-
-			if (event.type === 'waiting_for_player') {
-				matchmakingState = 'waiting';
-				matchmakingMessage = null;
-				void invalidateAll();
-				if (options.navigateOnWaiting) {
-					void goto(`/game/${event.gameId}`);
-				}
-				return;
-			}
-
-			if (event.type === 'game_started') {
-				matchmakingState = 'matched';
-				matchmakingMessage = null;
-				void invalidateAll();
-				void goto(`/game/${event.gameId}`);
-				return;
-			}
-
-			if (event.type === 'invalid_move') {
-				matchmakingState = 'failed';
-				matchmakingMessage = event.message;
-			}
-		});
-	}
-
 	async function startNewGame(attempt = 0) {
 		if (!data.user) return;
 		isStartingGame = true;
-		matchmakingState = 'idle';
 		matchmakingMessage = null;
 
 		try {
-			const client = new Client(data.colyseusUrl);
 			const response = await fetch('/api/matchmaking/new-game', { method: 'POST' });
 			if (!response.ok) {
 				throw new Error('Unable to fetch matchmaking candidates.');
 			}
 			const body = (await response.json()) as { gameId: string | null };
-			const gameIdToJoin = body.gameId;
-			if (gameIdToJoin) {
-				room = await client.joinOrCreate('capstone', {
-					userId: data.user.id,
-					gameId: gameIdToJoin,
-					needsOpponent: true
-				});
-			} else {
-				room = await client.create('capstone', {
-					userId: data.user.id,
-					gameId: crypto.randomUUID(),
-					needsOpponent: true
-				});
+			if (body.gameId) {
+				isAwaitingOpponentOptimistic = false;
+				await goto(`/game/${body.gameId}`);
+				void invalidateAll();
+				return;
 			}
-			wireRoom(room, { navigateOnWaiting: true });
+			isAwaitingOpponentOptimistic = true;
+			void invalidateAll();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			if (attempt < 1) {
-				// Retry once in case a room changes state during matchmaking.
 				await startNewGame(attempt + 1);
 				return;
 			}
-			matchmakingState = 'failed';
 			matchmakingMessage = message || 'Unable to start matchmaking right now.';
 		} finally {
 			isStartingGame = false;
 		}
 	}
 
+	$effect(() => {
+		if (data.waitingGames.length > 0) {
+			isAwaitingOpponentOptimistic = false;
+		}
+	});
+
 	async function startNewAiGame() {
 		if (!data.user) return;
 		isStartingGame = true;
-		matchmakingState = 'idle';
 		matchmakingMessage = null;
 		try {
-			await room?.leave();
-			const client = new Client(data.colyseusUrl);
-			const gameId = crypto.randomUUID();
-			// vs-AI rooms allow only one client. Create briefly so onJoin persists the game,
-			// then leave so /game/[gameId] can own the connection.
-			const created = await client.create('capstone', {
-				userId: data.user.id,
-				gameId,
-				needsOpponent: false,
-				vsAi: true
-			});
-			// Server sends `event` messages on join; swallow them before leave() so Colyseus
-			// does not warn "onMessage() not registered for type 'event'".
-			created.onMessage('event', () => {});
-			await created.leave();
-			room = null;
-			exposeRoomForDev(null);
+			const res = await fetch('/api/games/vs-ai', { method: 'POST' });
+			if (!res.ok) {
+				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+				throw new Error(errBody.error ?? 'Unable to start AI game.');
+			}
+			const { gameId } = (await res.json()) as { gameId: string };
 			await goto(`/game/${gameId}`);
 			void invalidateAll();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			matchmakingState = 'failed';
 			matchmakingMessage = message || 'Unable to start AI game right now.';
+		} finally {
+			isStartingGame = false;
+		}
+	}
+
+	async function startNewSelfGame() {
+		if (!data.user) return;
+		isStartingGame = true;
+		matchmakingMessage = null;
+		try {
+			const res = await fetch('/api/games/vs-self', { method: 'POST' });
+			if (!res.ok) {
+				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+				throw new Error(errBody.error ?? 'Unable to start game.');
+			}
+			const { gameId } = (await res.json()) as { gameId: string };
+			await goto(`/game/${gameId}`);
+			void invalidateAll();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			matchmakingMessage = message || 'Unable to start game right now.';
 		} finally {
 			isStartingGame = false;
 		}
@@ -369,7 +195,7 @@
 									class="inline-flex cursor-pointer items-center rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70 {hasAwaitingOpponent
 										? 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-950'
 										: 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'}"
-									disabled={matchmakingState === 'waiting' || hasAwaitingOpponent}
+									disabled={hasAwaitingOpponent}
 									onclick={() => void startNewGame()}
 								>
 									{hasAwaitingOpponent ? 'Awaiting Opponent' : 'New Game'}
@@ -378,10 +204,18 @@
 									<button
 										type="button"
 										class="inline-flex cursor-pointer items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-100"
-										disabled={matchmakingState === 'waiting'}
 										onclick={() => void startNewAiGame()}
 									>
 										Play vs CPU
+									</button>
+								{/if}
+								{#if data.vsSelfEnabled}
+									<button
+										type="button"
+										class="inline-flex cursor-pointer items-center rounded-lg border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-900 shadow-sm transition hover:bg-teal-100"
+										onclick={() => void startNewSelfGame()}
+									>
+										Play vs Self
 									</button>
 								{/if}
 							</div>
@@ -389,7 +223,7 @@
 					</div>
 				</div>
 
-				{#if matchmakingState === 'failed' && matchmakingMessage}
+				{#if matchmakingMessage}
 					<p class="text-sm text-rose-700">{matchmakingMessage}</p>
 				{/if}
 

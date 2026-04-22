@@ -23,5 +23,5 @@ FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /deploy/ ./
-EXPOSE 3000 2567
+EXPOSE 3000
 CMD ["node", "build/index.js"]

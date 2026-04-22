@@ -8,6 +8,8 @@
 		gameMessage,
 		getPlayerLabel,
 		vsAi = false,
+		vsSelf = false,
+		isAiThinking = false,
 		isGameEnded = false,
 		gameOutcome = null
 	}: {
@@ -21,6 +23,8 @@
 			player: { id: string | null; name: string | null; image: string | null } | null
 		) => string;
 		vsAi?: boolean;
+		vsSelf?: boolean;
+		isAiThinking?: boolean;
 		isGameEnded?: boolean;
 		/** Set when the game ended with a known winner for the viewer. */
 		gameOutcome?: 'win' | 'loss' | null;
@@ -38,11 +42,17 @@
 				: gameOutcome === 'loss'
 					? 'You lost!'
 					: 'Game over'
-			: isViewerTurn
-				? "It's Your Turn"
-				: vsAi
-					? "AI's Turn"
-					: "Opponent's Turn"
+			: isAiThinking
+				? 'CPU thinking…'
+				: vsSelf
+					? currentTurnIndex === 0
+						? 'Seat 1 to move'
+						: 'Seat 2 to move'
+					: isViewerTurn
+						? "It's Your Turn"
+						: vsAi
+							? "CPU's Turn"
+							: "Opponent's Turn"
 	);
 
 	let turnBubbleClass = $derived(

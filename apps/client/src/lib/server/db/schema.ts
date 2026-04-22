@@ -1,4 +1,13 @@
-import { pgTable, serial, integer, text, timestamp, jsonb, index, boolean } from 'drizzle-orm/pg-core';
+import {
+	pgTable,
+	serial,
+	integer,
+	text,
+	timestamp,
+	jsonb,
+	index,
+	boolean
+} from 'drizzle-orm/pg-core';
 import { user } from './auth.schema';
 
 export const task = pgTable('task', {
@@ -15,8 +24,11 @@ export const game = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'restrict' }),
 		player2Id: text('player2_id').references(() => user.id, { onDelete: 'restrict' }),
+
 		/** Local / dev: single human vs server-controlled opponent (no player2 user row). */
 		vsAi: boolean('vs_ai').notNull().default(false),
+		/** Single browser, same user alternates both seats (friend-alongside / practice mode). */
+		vsSelf: boolean('vs_self').notNull().default(false),
 		winnerPlayerId: text('winner_player_id').references(() => user.id, { onDelete: 'restrict' }),
 		startedAt: timestamp('started_at').notNull(),
 		endedAt: timestamp('ended_at')

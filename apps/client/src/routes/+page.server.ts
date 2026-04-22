@@ -2,9 +2,7 @@ import { env } from '$env/dynamic/private';
 import { desc, or, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { boardState, game, user } from '$lib/server/db/schema';
-import { getColyseusPublicUrl } from '$lib/server/realtime/server';
-
-export const load = async ({ locals, url }) => {
+export const load = async ({ locals }) => {
 		const lobbyGames = locals.user
 		? await db
 				.select({
@@ -12,6 +10,7 @@ export const load = async ({ locals, url }) => {
 					player1Id: game.player1Id,
 					player2Id: game.player2Id,
 					vsAi: game.vsAi,
+					vsSelf: game.vsSelf,
 					winnerPlayerId: game.winnerPlayerId,
 					startedAt: game.startedAt,
 					endedAt: game.endedAt
@@ -51,10 +50,10 @@ export const load = async ({ locals, url }) => {
 	);
 
 	const waitingGameRows = lobbyGames.filter(
-		(gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id && !gameRecord.vsAi
+		(gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id && !gameRecord.vsAi && !gameRecord.vsSelf
 	);
 	const inProgressGameRows = lobbyGames.filter(
-		(gameRecord) => !gameRecord.endedAt && (!!gameRecord.player2Id || gameRecord.vsAi)
+		(gameRecord) => !gameRecord.endedAt && (!!gameRecord.player2Id || gameRecord.vsAi || gameRecord.vsSelf)
 	);
 	const inProgressGameIds = inProgressGameRows.map((gameRecord) => gameRecord.id);
 	const inProgressBoardRows =
@@ -91,15 +90,20 @@ export const load = async ({ locals, url }) => {
 			id: gameRecord.id,
 			opponent: gameRecord.vsAi
 				? { id: 'ai', name: 'CPU', image: null as string | null }
-				: opponentId
-					? (opponentById.get(opponentId) ?? null)
-					: null,
+				: gameRecord.vsSelf
+					? { id: 'self', name: 'vs Self', image: null as string | null }
+					: opponentId
+						? (opponentById.get(opponentId) ?? null)
+						: null,
 			status: 'in_progress' as const,
 			startedAt: gameRecord.startedAt.toISOString(),
 			endedAt: null,
+			// vsSelf: always your turn (you play both sides)
 			isYourTurn:
-				(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
-				(viewerPlayerIndex === 2 && currentTurnIndex === 1)
+				gameRecord.vsSelf
+					? true
+					: (viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+						(viewerPlayerIndex === 2 && currentTurnIndex === 1)
 		};
 	});
 
@@ -115,6 +119,9 @@ export const load = async ({ locals, url }) => {
 			opponent: (() => {
 				if (gameRecord.vsAi) {
 					return { id: 'ai', name: 'CPU', image: null as string | null };
+				}
+				if (gameRecord.vsSelf) {
+					return { id: 'self', name: 'vs Self', image: null as string | null };
 				}
 				const opponentId =
 					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
@@ -136,7 +143,7 @@ export const load = async ({ locals, url }) => {
 	return {
 		githubLoginEnabled: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
 		aiOpponentEnabled: env.AI_OPPONENT_ENABLED !== 'false',
-		colyseusUrl: getColyseusPublicUrl(url),
+		vsSelfEnabled: true,
 		hasSession: Boolean(locals.session),
 		user: locals.user
 			? {

@@ -1,22 +1,12 @@
-import { env } from '$env/dynamic/private';
-import type { GameMoveProvider } from './game-move-provider';
-import { OpenAiGameMoveProvider } from './openai-move-provider';
-import { VirtualOpponentGameMoveProvider } from './virtual-opponent-move-provider';
-
 /**
- * Returns a move provider for vs-AI games when CPU opponents are not disabled.
- * Uses the bundled heuristic by default; set `AI_USE_OPENAI=true` and `OPENAI_API_KEY` for OpenAI.
+ * Server-side AI barrel. The heuristic opponent now runs client-side
+ * (`@capstone/virtual-opponent`). This module is kept so that any remaining
+ * server imports still resolve; `getGameMoveProvider` always returns null.
  */
-export function getGameMoveProvider(): GameMoveProvider | null {
-	if (env.AI_OPPONENT_ENABLED === 'false') {
-		return null;
-	}
-	const useOpenAi = env.AI_USE_OPENAI === 'true' && Boolean(env.OPENAI_API_KEY?.trim());
-	if (useOpenAi) {
-		return new OpenAiGameMoveProvider({
-			apiKey: env.OPENAI_API_KEY!.trim(),
-			model: env.OPENAI_MODEL?.trim() || undefined
-		});
-	}
-	return new VirtualOpponentGameMoveProvider();
+export type { GameMoveProvider, GameBoardStateInput, ChosenMove } from './game-move-provider';
+export { VirtualOpponentGameMoveProvider } from './virtual-opponent-move-provider';
+
+/** @deprecated AI now runs client-side. Returns null so callers no-op. */
+export function getGameMoveProvider(): null {
+	return null;
 }

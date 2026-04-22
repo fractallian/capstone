@@ -1,6 +1,6 @@
-# Optional: TLS + split hostnames. Set APP_DOMAIN and REALTIME_DOMAIN in `apps/client/.env` (or your env_file).
+# Optional: TLS for the app hostname. Set APP_DOMAIN in `apps/client/.env` (or your env_file).
 # Run: docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
-# Then set ORIGIN=https://$APP_DOMAIN and PUBLIC_COLYSEUS_URL=wss://$REALTIME_DOMAIN
+# Then set ORIGIN=https://$APP_DOMAIN
 services:
   caddy:
     image: caddy:2-alpine
@@ -10,7 +10,6 @@ services:
       - "443:443"
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
-      REALTIME_DOMAIN: ${REALTIME_DOMAIN}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:

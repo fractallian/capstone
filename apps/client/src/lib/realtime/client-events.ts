@@ -1,6 +1,5 @@
 import { gameServerEventSchema, type GameServerEvent, type GameSnapshot } from '@capstone/contracts';
 import type { Game } from '@capstone/game-logic';
-import type { Room } from 'colyseus.js';
 import type { AnimateStackMoveOptions } from '$lib/dom/animateStackMove';
 
 /** DOM-only stack flight (dev); see `$lib/dom/animateStackMove`. */
@@ -14,7 +13,7 @@ export type CapstoneAnimateStackMove = {
 };
 
 export type CapstoneDebug = {
-	room: Room | null;
+	room: unknown;
 	getRoomId: () => string | null;
 	getSyncSeq: () => number;
 	game: Game | null;
@@ -36,7 +35,7 @@ export type CapstoneDebug = {
 
 type CapstoneDebugWindow = Window & {
 	__capstoneDebug?: CapstoneDebug;
-	__capstoneRoom?: Room | null;
+	__capstoneRoom?: unknown;
 	__capstoneAnimateStackMove?: CapstoneAnimateStackMove;
 };
 
@@ -60,7 +59,7 @@ export function appendRecentEvent(events: GameServerEvent[], event: GameServerEv
 	return [...events.slice(-49), event];
 }
 
-export function setDebugRoom(currentRoom: Room | null): void {
+export function setDebugRoom(currentRoom: unknown): void {
 	if (typeof window === 'undefined') return;
 	const debugWindow = window as CapstoneDebugWindow;
 	debugWindow.__capstoneRoom = currentRoom;

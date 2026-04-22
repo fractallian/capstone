@@ -7,7 +7,7 @@ export type GameBoardStateInput = {
 	legalMoves: SerializedMove[];
 };
 
-/** A move in global stack index space (same as `SerializedMove` / Colyseus commands). */
+/** A move in global stack index space (same as `SerializedMove` / game commands). */
 export type ChosenMove = Pick<SerializedMove, 'from' | 'to'>;
 
 /**

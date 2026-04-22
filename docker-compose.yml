@@ -1,4 +1,4 @@
-# SvelteKit (PORT) + Colyseus (COLYSEUS_PORT) in one container.
+# SvelteKit (PORT) in one container.
 # Create `apps/client/.env` first (e.g. `cp apps/client/.env.example apps/client/.env` and fill values).
 # For TLS + two hostnames, see `docker-compose.caddy.yml`.
 services:
@@ -14,4 +14,3 @@ services:
       PORT: "3000"
     ports:
       - "${HTTP_PORT:-3000}:3000"
-      - "${COLYSEUS_PORT:-2567}:2567"

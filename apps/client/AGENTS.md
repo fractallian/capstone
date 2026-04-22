@@ -5,6 +5,9 @@ This file contains `apps/client`-specific guidance and supplements the repositor
 - **Language**: TypeScript
 - **Package Manager**: pnpm
 - **Add-ons**: prettier, vitest, tailwindcss, better-auth, mcp, drizzle
+## Code Style
+
+- In server-side code under `src` (for example `src/lib/server/**`, `*.server.ts`, and route `+server.ts` files), export at most one function per file.
 
 ---
 

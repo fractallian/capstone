@@ -9,6 +9,8 @@
 	export type GameProps = {
 		moves: SerializedMove[];
 		movesSyncKey: string;
+		/** Must match persisted snapshot; `deserialize(moves)` alone is wrong at ply 0 when seat 2 starts. */
+		currentTurnIndex: 0 | 1;
 		viewerPlayerIndex: 1 | 2;
 		canInteract?: boolean;
 		onMove?: (fromStackIndex: number, toStackIndex: number) => void | Promise<void>;
@@ -18,6 +20,7 @@
 	let {
 		moves,
 		movesSyncKey,
+		currentTurnIndex,
 		viewerPlayerIndex,
 		canInteract = false,
 		onMove,
@@ -38,7 +41,13 @@
 		return () => setCapstoneGameBoardRoot(null);
 	});
 
-	let localGame = $derived(Game.deserialize(localMoves));
+	function hydrateGame(movesList: SerializedMove[], turn: 0 | 1): Game {
+		const g = Game.deserialize(movesList);
+		g.currentTurn = turn === 1 ? g.player2 : g.player1;
+		return g;
+	}
+
+	let localGame = $derived(hydrateGame(localMoves, currentTurnIndex));
 
 	let localStacks = $derived.by<StackProps[]>(() =>
 		localGame.stacks.map((stack) => ({
@@ -71,10 +80,9 @@
 	let opponentPoolStacks = $derived(
 		viewerPlayerIndex === 1 ? player2PoolStacks : player1PoolStacks
 	);
-	let localCurrentTurnIndex = $derived(localGame.currentTurnIndex());
 	let isViewerTurn = $derived(
-		(viewerPlayerIndex === 1 && localCurrentTurnIndex === 0) ||
-			(viewerPlayerIndex === 2 && localCurrentTurnIndex === 1)
+		(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+			(viewerPlayerIndex === 2 && currentTurnIndex === 1)
 	);
 	let dragBindingKey = $derived(
 		`${JSON.stringify(localMoves)}|${interactiveStacks
@@ -83,7 +91,7 @@
 	);
 
 	function isMoveLegal(fromStackIndex: number, toStackIndex: number): boolean {
-		const g = Game.deserialize(localMoves);
+		const g = hydrateGame(localMoves, currentTurnIndex);
 		if (
 			fromStackIndex < 0 ||
 			fromStackIndex >= g.stacks.length ||
