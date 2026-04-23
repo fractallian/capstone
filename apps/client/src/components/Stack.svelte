@@ -19,7 +19,7 @@
 >
 	{#each pieces as piece, i (i)}
 		<div
-			class={`stack__layer ${isTopPieceDraggable && i === pieces.length - 1 ? 'stack__layer--draggable' : ''}`.trim()}
+			class={`stack__layer ${isTopPieceDraggable && i === pieces.length - 1 ? 'stack__layer--draggable stack__layer--movable' : ''}`.trim()}
 			style={`z-index:${i};`}
 		>
 			<Piece {...piece} />
@@ -47,6 +47,9 @@
 
 	.stack__layer--draggable:active {
 		cursor: grabbing;
+	}
+	.stack__layer--movable {
+		filter: drop-shadow(0 0 8px rgb(73, 161, 255));
 	}
 
 	:global(.stack--drop-hover-valid) {

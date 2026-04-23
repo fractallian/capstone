@@ -111,8 +111,27 @@ export const load = async ({ locals }) => {
 		if (a.isYourTurn === b.isYourTurn) return 0;
 		return a.isYourTurn ? -1 : 1;
 	});
+	const completedGameRows = lobbyGames.filter((gameRecord) => Boolean(gameRecord.endedAt));
+	const completedGameIds = completedGameRows.map((gameRecord) => gameRecord.id);
+	const completedBoardRows =
+		completedGameIds.length > 0
+			? await db
+					.select({
+						gameId: boardState.gameId,
+						board: boardState.board
+					})
+					.from(boardState)
+					.where(inArray(boardState.gameId, completedGameIds))
+					.orderBy(boardState.gameId, desc(boardState.createdAt), desc(boardState.id))
+			: [];
+	const latestCompletedBoardByGameId = new Map<string, unknown>();
+	for (const row of completedBoardRows) {
+		if (!latestCompletedBoardByGameId.has(row.gameId)) {
+			latestCompletedBoardByGameId.set(row.gameId, row.board);
+		}
+	}
 
-	const completedGames = lobbyGames
+	const completedGames = completedGameRows
 		.filter((gameRecord) => Boolean(gameRecord.endedAt))
 		.map((gameRecord) => ({
 			id: gameRecord.id,
@@ -127,8 +146,22 @@ export const load = async ({ locals }) => {
 					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
 				return opponentId ? opponentById.get(opponentId) ?? null : null;
 			})(),
-			result:
-				gameRecord.winnerPlayerId && gameRecord.winnerPlayerId === locals.user?.id ? 'win' : 'loss',
+			result: (() => {
+				if (gameRecord.vsSelf) {
+					const snapshot = latestCompletedBoardByGameId.get(gameRecord.id) as
+						| { winnerSeatIndex?: 0 | 1 | null }
+						| null
+						| undefined;
+					const seat =
+						snapshot && !Array.isArray(snapshot) && snapshot.winnerSeatIndex !== undefined
+							? snapshot.winnerSeatIndex
+							: null;
+					return seat === 1 ? 'gold' : 'purple';
+				}
+				return gameRecord.winnerPlayerId && gameRecord.winnerPlayerId === locals.user?.id
+					? 'win'
+					: 'loss';
+			})(),
 			status: 'completed' as const,
 			startedAt: gameRecord.startedAt.toISOString(),
 			endedAt: gameRecord.endedAt?.toISOString() ?? null

@@ -7,7 +7,7 @@
 		games: {
 			id: string;
 			opponent: { id: string; name: string | null; image: string | null } | null;
-			result: 'win' | 'loss';
+			result: 'win' | 'loss' | 'purple' | 'gold';
 			status: 'completed';
 			startedAt: string;
 			endedAt: string | null;
@@ -37,12 +37,34 @@
 							class={`flex h-10 w-10 items-center justify-center rounded-lg text-xl font-extrabold ${
 								gameRecord.result === 'win'
 									? 'bg-emerald-100 text-emerald-700'
-									: 'bg-rose-100 text-rose-700'
+									: gameRecord.result === 'loss'
+										? 'bg-rose-100 text-rose-700'
+										: gameRecord.result === 'purple'
+											? 'bg-violet-100 text-violet-700'
+											: 'bg-amber-100 text-amber-700'
 							}`}
-							aria-label={gameRecord.result === 'win' ? 'Win' : 'Loss'}
-							title={gameRecord.result === 'win' ? 'Win' : 'Loss'}
+							aria-label={gameRecord.result === 'win'
+								? 'Win'
+								: gameRecord.result === 'loss'
+									? 'Loss'
+									: gameRecord.result === 'purple'
+										? 'Purple wins'
+										: 'Gold wins'}
+							title={gameRecord.result === 'win'
+								? 'Win'
+								: gameRecord.result === 'loss'
+									? 'Loss'
+									: gameRecord.result === 'purple'
+										? 'Purple wins'
+										: 'Gold wins'}
 						>
-							{gameRecord.result === 'win' ? 'W' : 'L'}
+							{gameRecord.result === 'win'
+								? 'W'
+								: gameRecord.result === 'loss'
+									? 'L'
+									: gameRecord.result === 'purple'
+										? 'P'
+										: 'G'}
 						</div>
 						<div class="flex min-w-0 items-center gap-2">
 							{#if gameRecord.opponent?.image}

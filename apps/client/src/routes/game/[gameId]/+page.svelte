@@ -168,7 +168,7 @@
 	});
 	let movesSyncKey = $derived(JSON.stringify(getMoves(liveSnapshot)));
 
-	let showWinConfetti = $derived(gameOutcome === 'win');
+	let showWinConfetti = $derived(Boolean(isGameEnded && (vsSelf || gameOutcome === 'win')));
 
 	const confettiPieces = Array.from({ length: 36 }, (_, i) => ({
 		id: i,
@@ -221,6 +221,10 @@
 		};
 
 		if (hasNewMoves && newMoves.length > 0) {
+			if (vsSelf && turnAtStartOfNewMoves === 1) {
+				applySnapshot();
+				return;
+			}
 			const plyToAnimate =
 				vsAi && newMoves.length > 1 && moves.length > 0 ? moves.length - 1 : lastStateSyncMoveCount;
 			if (
@@ -244,22 +248,62 @@
 	async function submitMovePayload(command: MakeMoveCommand) {
 		const moveCountBeforeSync = getMoves(liveSnapshot).length;
 		const turnAtStartOfNewMoves = getCurrentTurnIndex(liveSnapshot);
+		let rollbackSnapshot: GameStateLike | null = null;
 
-		const res = await fetch(`/api/games/${gameId}/move`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(command)
-		});
-		const body = (await res.json()) as {
-			snapshot?: GameSnapshot;
-			error?: string;
-			errors?: string[];
-		};
+		if (vsSelf && liveSnapshot) {
+			const optimisticGame = hydrateGameFromSnapshotState(liveSnapshot);
+			try {
+				optimisticGame.makeMove(optimisticGame.stacks[command.from], optimisticGame.stacks[command.to]);
+				rollbackSnapshot = liveSnapshot;
+				const optimisticSnapshot: GameSnapshot = {
+					moves: optimisticGame.serialize(),
+					currentTurnIndex: optimisticGame.currentTurnIndex() as 0 | 1,
+					winnerPlayerId: getWinnerPlayerId(liveSnapshot),
+					winnerSeatIndex: getWinnerSeatIndex(liveSnapshot) ?? undefined,
+					endedAt: getEndedAt(liveSnapshot)
+				};
+				lastStateSyncMoveCount = optimisticSnapshot.moves.length;
+				liveSnapshot = optimisticSnapshot;
+				gameMessage = null;
+			} catch {
+				rollbackSnapshot = null;
+			}
+		}
+
+		let res: Response;
+		let body: { snapshot?: GameSnapshot; error?: string; errors?: string[] };
+		try {
+			res = await fetch(`/api/games/${gameId}/move`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(command)
+			});
+			body = (await res.json()) as {
+				snapshot?: GameSnapshot;
+				error?: string;
+				errors?: string[];
+			};
+		} catch {
+			if (rollbackSnapshot) {
+				liveSnapshot = rollbackSnapshot;
+				lastStateSyncMoveCount = getMoves(rollbackSnapshot).length;
+			}
+			gameMessage = 'Move failed';
+			return;
+		}
 		if (!res.ok) {
+			if (rollbackSnapshot) {
+				liveSnapshot = rollbackSnapshot;
+				lastStateSyncMoveCount = getMoves(rollbackSnapshot).length;
+			}
 			gameMessage = body.error ?? 'Move failed';
 			return;
 		}
 		if (!body.snapshot) {
+			if (rollbackSnapshot) {
+				liveSnapshot = rollbackSnapshot;
+				lastStateSyncMoveCount = getMoves(rollbackSnapshot).length;
+			}
 			gameMessage = 'Invalid response';
 			return;
 		}
@@ -534,6 +578,7 @@
 			{player2}
 			{viewerPlayerIndex}
 			{currentTurnIndex}
+			{winnerSeatIndex}
 			{roomStatus}
 			{gameMessage}
 			{getPlayerLabel}
@@ -545,15 +590,13 @@
 		/>
 
 		<div
-			class={`flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-opacity sm:p-5 ${
-				!isGameEnded && !isViewerTurn && !vsSelf ? 'opacity-[0.92]' : ''
-			}`}
+			class="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-opacity sm:p-5"
 		>
 			<div
 				class="relative isolate mx-auto flex max-h-[calc(100dvh-13rem)] min-h-0 w-full flex-1 overflow-hidden rounded-lg"
 			>
 				{#if showWinConfetti}
-					<div class="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+					<div class="pointer-events-none absolute inset-0 z-20 overflow-hidden" aria-hidden="true">
 						{#each confettiPieces as piece (piece.id)}
 							<span
 								class="confetti-piece"
@@ -564,11 +607,11 @@
 				{/if}
 				<div class="relative z-1 flex min-h-0 min-w-0 flex-1">
 					<GameComponent
-						class={!isGameEnded && !isViewerTurn && !vsSelf ? 'game--inactive' : ''}
 						moves={getMoves(liveSnapshot)}
 						{movesSyncKey}
 						{currentTurnIndex}
 						{viewerPlayerIndex}
+						{vsSelf}
 						{canInteract}
 						onMove={handleBoardMove}
 					/>

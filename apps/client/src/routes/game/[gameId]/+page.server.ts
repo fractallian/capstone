@@ -1,7 +1,9 @@
 import { error, redirect } from '@sveltejs/kit';
 import { and, desc, eq, or } from 'drizzle-orm';
+import { Game } from '@capstone/game-logic';
 import { db } from '$lib/server/db';
 import { boardState, game, user } from '$lib/server/db/schema';
+import { buildCapstoneSnapshot } from '$lib/server/game/build-capstone-snapshot';
 import { realtimeServer } from '$lib/server/realtime/server';
 
 export const load = async ({ locals, params, url }) => {
@@ -21,7 +23,7 @@ export const load = async ({ locals, params, url }) => {
 		}),
 		db.query.boardState.findFirst({
 			where: eq(boardState.gameId, requestedGameId),
-			orderBy: [desc(boardState.createdAt)]
+			orderBy: [desc(boardState.createdAt), desc(boardState.id)]
 		})
 	]);
 
@@ -29,11 +31,14 @@ export const load = async ({ locals, params, url }) => {
 		throw error(404, 'Game not found');
 	}
 
-	if (!latestBoardState) {
-		throw error(404, 'Game not found');
-	}
 
 	const vsSelf = Boolean(currentGame.vsSelf);
+	const initialSnapshot = buildCapstoneSnapshot(new Game(), {
+		gameEnded: false,
+		winnerPlayerId: null,
+		winnerSeatIndex: null,
+		endedAt: null
+	});
 
 	const [player1, player2] = await Promise.all([
 		db.query.user.findFirst({
@@ -51,7 +56,7 @@ export const load = async ({ locals, params, url }) => {
 	return {
 		colyseusUrl: realtimeServer.getPublicUrl(url),
 		gameId: requestedGameId,
-		gameState: latestBoardState.board,
+		gameState: latestBoardState?.board ?? initialSnapshot,
 		vsAi: Boolean(currentGame.vsAi),
 		vsSelf,
 		viewerPlayerIndex: currentGame.player1Id === locals.user.id ? 1 : 2,

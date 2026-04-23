@@ -27,7 +27,7 @@ export async function loadCapstoneSnapshotFromDb(
 ): Promise<GameSnapshot> {
 	const latestBoardState = await db.query.boardState.findFirst({
 		where: (table, { eq }) => eq(table.gameId, gameId),
-		orderBy: (table, { desc }) => [desc(table.createdAt)]
+		orderBy: (table, { desc }) => [desc(table.createdAt), desc(table.id)]
 	});
 
 	const coerced = coerceStoredBoardJson(latestBoardState?.board);

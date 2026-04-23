@@ -12,6 +12,7 @@
 		/** Must match persisted snapshot; `deserialize(moves)` alone is wrong at ply 0 when seat 2 starts. */
 		currentTurnIndex: 0 | 1;
 		viewerPlayerIndex: 1 | 2;
+		vsSelf?: boolean;
 		canInteract?: boolean;
 		onMove?: (fromStackIndex: number, toStackIndex: number) => void | Promise<void>;
 		class?: string;
@@ -22,6 +23,7 @@
 		movesSyncKey,
 		currentTurnIndex,
 		viewerPlayerIndex,
+		vsSelf = false,
 		canInteract = false,
 		onMove,
 		class: className
@@ -58,7 +60,12 @@
 		}))
 	);
 
-	let draggableColor = $derived(viewerPlayerIndex === 1 ? PlayerColor.Black : PlayerColor.White);
+	let draggableColor = $derived.by(() => {
+		if (vsSelf) {
+			return currentTurnIndex === 0 ? PlayerColor.Black : PlayerColor.White;
+		}
+		return viewerPlayerIndex === 1 ? PlayerColor.Black : PlayerColor.White;
+	});
 	let interactiveStacks = $derived.by<StackProps[]>(() =>
 		localStacks.map((stack, stackIndex) => {
 			const topPiece = stack.pieces.at(-1);
@@ -225,7 +232,7 @@
 </script>
 
 <div class="game-viewport">
-	<div class={`game ${className ?? ''}`.trim()} bind:this={gameElement}>
+	<div class={`game ${vsSelf ? 'game--vs-self' : ''} ${className ?? ''}`.trim()} bind:this={gameElement}>
 		<div
 			class={`game__pool game__pool--viewer ${isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
 		>
@@ -293,10 +300,6 @@
 		align-self: center;
 	}
 
-	.game--inactive .game__board {
-		opacity: 0.55;
-		filter: grayscale(0.15);
-	}
 
 	.game__pool {
 		position: relative;
@@ -329,7 +332,6 @@
 	 */
 	.game__pool--viewer {
 		box-sizing: border-box;
-		border: 1px solid rgb(30 41 59);
 		border-radius: 0.5rem;
 		background: rgb(255 255 255);
 		/* visible so dragged pieces aren’t clipped over the board; border-radius still frames the pool */
@@ -338,7 +340,6 @@
 	}
 
 	.game__pool--viewer.game__pool--turn {
-		border-color: rgb(124 58 237);
 		box-shadow: 0 1px 3px rgb(124 58 237 / 0.2);
 	}
 
@@ -349,5 +350,12 @@
 
 	.game__pool--opponent.game__pool--turn {
 		filter: drop-shadow(0 0 0.35rem rgb(245 158 11 / 0.35));
+	}
+
+	/* vsSelf uses the open pool style on both sides (no boxed border around active pool). */
+	.game--vs-self .game__pool--viewer {
+		border-radius: 0;
+		background: transparent;
+		box-shadow: none;
 	}
 </style>

@@ -25,7 +25,7 @@
 			completedGames: {
 				id: string;
 				opponent: { id: string; name: string | null; image: string | null } | null;
-				result: 'win' | 'loss';
+				result: 'win' | 'loss' | 'purple' | 'gold';
 				status: 'completed';
 				startedAt: string;
 				endedAt: string | null;

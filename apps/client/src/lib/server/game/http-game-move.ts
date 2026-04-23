@@ -52,7 +52,7 @@ export async function applyHttpGameMove(params: {
 	// ── Load the latest board snapshot ────────────────────────────────────────
 	const latestBoard = await db.query.boardState.findFirst({
 		where: eq(boardState.gameId, gameId),
-		orderBy: [desc(boardState.createdAt)]
+		orderBy: [desc(boardState.createdAt), desc(boardState.id)]
 	});
 	const gamePersisted = latestBoard !== undefined;
 
