@@ -142,6 +142,7 @@ export const load = async ({ locals }) => {
 
 	return {
 		githubLoginEnabled: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+		googleLoginEnabled: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
 		aiOpponentEnabled: env.AI_OPPONENT_ENABLED !== 'false',
 		vsSelfEnabled: true,
 		hasSession: Boolean(locals.session),
