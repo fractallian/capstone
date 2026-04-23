@@ -51,6 +51,8 @@
 	},
 	"dependencies": {
 		"@capstone/virtual-opponent": "workspace:*",
+		"colyseus": "^0.15.57",
+		"colyseus.js": "^0.15.28",
 		"interactjs": "^1.10.27"
 	}
 }

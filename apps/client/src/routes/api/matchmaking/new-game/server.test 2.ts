@@ -3,7 +3,6 @@ import { POST } from './+server';
 
 const {
 	findFirstMock,
-	findManyMock,
 	insertValuesMock,
 	insertMock,
 	boardStateFindFirstMock,
@@ -13,7 +12,6 @@ const {
 	updateMock
 } = vi.hoisted(() => {
 	const findFirst = vi.fn();
-	const findMany = vi.fn();
 	const insertValues = vi.fn();
 	const insertFn = vi.fn(() => ({ values: insertValues }));
 	const boardStateFindFirst = vi.fn();
@@ -24,7 +22,6 @@ const {
 
 	return {
 		findFirstMock: findFirst,
-		findManyMock: findMany,
 		insertValuesMock: insertValues,
 		insertMock: insertFn,
 		boardStateFindFirstMock: boardStateFindFirst,
@@ -35,16 +32,11 @@ const {
 	};
 });
 
-const { isOnlineMock } = vi.hoisted(() => ({
-	isOnlineMock: vi.fn()
-}));
-
 vi.mock('$lib/server/db', () => ({
 	db: {
 		query: {
 			game: {
-				findFirst: findFirstMock,
-				findMany: findManyMock
+				findFirst: findFirstMock
 			},
 			boardState: {
 				findFirst: boardStateFindFirstMock
@@ -55,19 +47,12 @@ vi.mock('$lib/server/db', () => ({
 	}
 }));
 
-vi.mock('$lib/server/realtime/online-presence', () => ({
-	realtimePresence: {
-		isOnline: isOnlineMock
-	}
-}));
-
 vi.mock('$lib/server/db/schema', () => ({
 	game: {
 		id: 'id',
 		player1Id: 'player1Id',
 		player2Id: 'player2Id',
 		vsAi: 'vsAi',
-		vsSelf: 'vsSelf',
 		endedAt: 'endedAt'
 	},
 	boardState: {
@@ -84,8 +69,6 @@ describe('POST /api/matchmaking/new-game', () => {
 		setMock.mockImplementation(() => ({ where: whereMock }));
 		updateMock.mockImplementation(() => ({ set: setMock }));
 		insertMock.mockImplementation(() => ({ values: insertValuesMock }));
-		findManyMock.mockResolvedValue([]);
-		isOnlineMock.mockReturnValue(false);
 	});
 
 	it('returns 401 when user is unauthorized', async () => {
@@ -95,12 +78,11 @@ describe('POST /api/matchmaking/new-game', () => {
 
 		expect(response.status).toBe(401);
 		await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
-		expect(findManyMock).not.toHaveBeenCalled();
+		expect(findFirstMock).not.toHaveBeenCalled();
 	});
 
 	it('returns null when no waiting game exists', async () => {
-		findManyMock.mockResolvedValueOnce([]);
-		findFirstMock.mockResolvedValueOnce(null);
+		findFirstMock.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 		insertValuesMock.mockResolvedValue(undefined);
 
 		const response = await POST({
@@ -112,12 +94,8 @@ describe('POST /api/matchmaking/new-game', () => {
 		expect(updateMock).not.toHaveBeenCalled();
 	});
 
-	it('claims and returns the oldest waiting game with an online host', async () => {
-		findManyMock.mockResolvedValueOnce([
-			{ id: 'game-offline', player1Id: 'offline-host' },
-			{ id: 'game-1', player1Id: 'online-host' }
-		]);
-		isOnlineMock.mockImplementation((userId: string) => userId === 'online-host');
+	it('claims and returns a waiting game id', async () => {
+		findFirstMock.mockResolvedValueOnce({ id: 'game-1' });
 		returningMock.mockResolvedValueOnce([{ id: 'game-1' }]);
 		boardStateFindFirstMock.mockResolvedValueOnce({
 			board: {
@@ -140,16 +118,12 @@ describe('POST /api/matchmaking/new-game', () => {
 		expect(setMock).toHaveBeenCalledWith({ player2Id: 'u2' });
 		expect(whereMock).toHaveBeenCalledTimes(1);
 		expect(insertMock).toHaveBeenCalled();
-		expect(isOnlineMock).toHaveBeenCalledWith('offline-host');
-		expect(isOnlineMock).toHaveBeenCalledWith('online-host');
 	});
 
-	it('continues to next online candidate when first claim loses race and then succeeds', async () => {
-		findManyMock.mockResolvedValueOnce([
-			{ id: 'game-1', player1Id: 'online-host-1' },
-			{ id: 'game-2', player1Id: 'online-host-2' }
-		]);
-		isOnlineMock.mockReturnValue(true);
+	it('retries when first claim loses race and then succeeds', async () => {
+		findFirstMock
+			.mockResolvedValueOnce({ id: 'game-1' })
+			.mockResolvedValueOnce({ id: 'game-2' });
 		returningMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'game-2' }]);
 
 		const response = await POST({
@@ -158,17 +132,16 @@ describe('POST /api/matchmaking/new-game', () => {
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({ gameId: 'game-2' });
+		expect(findFirstMock).toHaveBeenCalledTimes(2);
 		expect(updateMock).toHaveBeenCalledTimes(2);
 	});
 
-	it('returns null when candidates exist but no host is online', async () => {
-		findManyMock.mockResolvedValueOnce([
-			{ id: 'game-1', player1Id: 'offline-1' },
-			{ id: 'game-2', player1Id: 'offline-2' }
-		]);
-		isOnlineMock.mockReturnValue(false);
-		findFirstMock.mockResolvedValueOnce(null);
-		insertValuesMock.mockResolvedValue(undefined);
+	it('returns null when all claim retries fail', async () => {
+		findFirstMock
+			.mockResolvedValueOnce({ id: 'game-1' })
+			.mockResolvedValueOnce({ id: 'game-2' })
+			.mockResolvedValueOnce({ id: 'game-3' });
+		returningMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
 		const response = await POST({
 			locals: { session: { id: 's1' }, user: { id: 'u2' } }
@@ -176,6 +149,7 @@ describe('POST /api/matchmaking/new-game', () => {
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({ gameId: null });
-		expect(updateMock).not.toHaveBeenCalled();
+		expect(findFirstMock).toHaveBeenCalledTimes(4);
+		expect(updateMock).toHaveBeenCalledTimes(3);
 	});
 });

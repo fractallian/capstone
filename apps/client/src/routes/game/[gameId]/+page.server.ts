@@ -2,8 +2,9 @@ import { error, redirect } from '@sveltejs/kit';
 import { and, desc, eq, or } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { boardState, game, user } from '$lib/server/db/schema';
+import { realtimeServer } from '$lib/server/realtime/server';
 
-export const load = async ({ locals, params }) => {
+export const load = async ({ locals, params, url }) => {
 	if (!locals.session || !locals.user) {
 		throw redirect(302, '/');
 	}
@@ -48,6 +49,7 @@ export const load = async ({ locals, params }) => {
 	]);
 
 	return {
+		colyseusUrl: realtimeServer.getPublicUrl(url),
 		gameId: requestedGameId,
 		gameState: latestBoardState.board,
 		vsAi: Boolean(currentGame.vsAi),

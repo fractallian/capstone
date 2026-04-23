@@ -17,6 +17,12 @@
 		setDebugRoom,
 		type CapstoneDebug
 	} from '$lib/realtime/client-events';
+	import {
+		isOpponentIncrementalMove,
+		OPPONENT_MOVE_ANIMATION_MS
+	} from '$lib/realtime/opponent-move-animation';
+	import { connectPersistedGameRoom } from '$lib/realtime/persisted-game-room';
+	import type { Room } from 'colyseus.js';
 	import { chooseMove } from '@capstone/virtual-opponent';
 
 	type GameStateLike =
@@ -34,6 +40,7 @@
 		data
 	}: {
 		data: {
+			colyseusUrl: string;
 			gameId: string;
 			gameState: GameStateLike;
 			vsAi: boolean;
@@ -44,6 +51,7 @@
 			player2: { id: string | null; name: string | null; image: string | null } | null;
 		};
 	} = $props();
+	let colyseusUrl = $derived(data.colyseusUrl);
 	let gameId = $derived(data.gameId);
 	let gameState = $derived(data.gameState);
 	let vsAi = $derived(data.vsAi);
@@ -53,13 +61,10 @@
 	let player1 = $derived(data.player1);
 	let player2 = $derived(data.player2);
 
-	let roomStatus = $derived(
-		vsAi || vsSelf
-			? ('opponent_connected' as const)
-			: player2
-				? ('opponent_connected' as const)
-				: ('waiting_for_opponent' as const)
-	);
+	let room: Room | null = $state(null);
+	let roomStatus = $state<
+		'connecting' | 'opponent_connected' | 'waiting_for_opponent' | 'disconnected'
+	>('waiting_for_opponent');
 	let liveSnapshot = $state<GameStateLike>(null);
 	let gameMessage = $state<string | null>(null);
 	let isAiThinking = $state(false);
@@ -105,34 +110,20 @@
 		return 'Waiting...';
 	}
 
-	function turnBeforeAbsolutePly(
-		plyIndex: number,
-		moveCountBeforeSync: number,
-		turnAtStartOfNewMoves: 0 | 1
-	): 0 | 1 {
-		const offset = plyIndex - moveCountBeforeSync;
-		return offset % 2 === 0 ? turnAtStartOfNewMoves : turnAtStartOfNewMoves === 0 ? 1 : 0;
+	function shouldUseRealtimePvp(): boolean {
+		return !vsAi && !vsSelf;
 	}
 
-	/** Whether the move at `plyIndex` is played by the opponent from the viewer's seat. */
-	function isOpponentIncrementalMove(
-		fullMoves: SerializedMove[],
-		plyIndex: number,
-		viewerIndex: 1 | 2,
-		moveCountBeforeSync: number,
-		turnAtStartOfNewMoves: 0 | 1
-	): boolean {
-		const turnBeforePly = turnBeforeAbsolutePly(
-			plyIndex,
-			moveCountBeforeSync,
-			turnAtStartOfNewMoves
-		);
-		const prevMoves = fullMoves.slice(0, plyIndex);
-		const before = Game.deserialize(prevMoves);
-		before.currentTurn = turnBeforePly === 1 ? before.player2 : before.player1;
-		const moverSeat = before.currentTurnIndex();
-		const viewerSeat = viewerIndex - 1;
-		return moverSeat !== viewerSeat;
+	function updateRoomStatusFromPresence(connectedPlayerIndexes: number[]) {
+		if (!shouldUseRealtimePvp()) {
+			roomStatus = 'opponent_connected';
+			return;
+		}
+		const viewerIndex = viewerPlayerIndex - 1;
+		const opponentIndex = viewerIndex === 0 ? 1 : 0;
+		roomStatus = connectedPlayerIndexes.includes(opponentIndex)
+			? 'opponent_connected'
+			: 'waiting_for_opponent';
 	}
 
 	function hydrateGameFromSnapshotState(snapshot: GameStateLike): Game {
@@ -143,8 +134,6 @@
 		return g;
 	}
 
-	const OPPONENT_MOVE_ANIMATION_MS = 680;
-
 	let game = $derived(hydrateGameFromSnapshotState(liveSnapshot));
 	let currentTurnIndex = $derived(getCurrentTurnIndex(liveSnapshot));
 	let winnerPlayerId = $derived(getWinnerPlayerId(liveSnapshot));
@@ -154,9 +143,9 @@
 	let isViewerWinner = $derived(
 		Boolean(
 			isGameEnded &&
-				(winnerSeatIndex !== null
-					? winnerSeatIndex === viewerPlayerIndex - 1
-					: winnerPlayerId === viewerUserId)
+			(winnerSeatIndex !== null
+				? winnerSeatIndex === viewerPlayerIndex - 1
+				: winnerPlayerId === viewerUserId)
 		)
 	);
 	let gameOutcome = $derived.by<'win' | 'loss' | null>(() => {
@@ -169,9 +158,7 @@
 			(viewerPlayerIndex === 2 && currentTurnIndex === 1)
 	);
 	/** vsSelf: both seats are interactive; vsAi: lock while AI is thinking. */
-	let canInteract = $derived(
-		!isGameEnded && (vsSelf ? true : isViewerTurn && !isAiThinking)
-	);
+	let canInteract = $derived(!isGameEnded && (vsSelf ? true : isViewerTurn && !isAiThinking));
 	let debugSnapshot = $derived<GameSnapshot>({
 		moves: getMoves(liveSnapshot),
 		currentTurnIndex,
@@ -193,39 +180,21 @@
 		color: ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#a855f7', '#f97316'][i % 6]
 	}));
 
-	async function submitMovePayload(command: MakeMoveCommand) {
-		const moveCountBeforeSync = getMoves(liveSnapshot).length;
-		const turnAtStartOfNewMoves = getCurrentTurnIndex(liveSnapshot);
-
-		const res = await fetch(`/api/games/${gameId}/move`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(command)
-		});
-		const body = (await res.json()) as {
-			snapshot?: GameSnapshot;
-			error?: string;
-			errors?: string[];
-		};
-		if (!res.ok) {
-			gameMessage = body.error ?? 'Move failed';
-			return;
-		}
-		if (!body.snapshot) {
-			gameMessage = 'Invalid response';
-			return;
-		}
-
-		const moves = body.snapshot.moves;
+	function reconcileSnapshotWithOpponentAnimation(
+		snapshot: GameSnapshot,
+		moveCountBeforeSync: number,
+		turnAtStartOfNewMoves: 0 | 1
+	): void {
+		const moves = snapshot.moves;
 		const hasNewMoves = lastStateSyncMoveCount >= 0 && moves.length > lastStateSyncMoveCount;
 		const newMoves = hasNewMoves ? moves.slice(lastStateSyncMoveCount) : [];
 
 		const applySnapshot = () => {
 			lastStateSyncMoveCount = moves.length;
-			liveSnapshot = body.snapshot!;
+			liveSnapshot = snapshot;
 			gameMessage = null;
 			debugSyncSeq += 1;
-			debugLastEvent = { type: 'state_sync', gameId, snapshot: body.snapshot! };
+			debugLastEvent = { type: 'state_sync', gameId, snapshot };
 			debugEvents = appendRecentEvent(debugEvents, debugLastEvent);
 			// Trigger client-side AI turn when it's now the AI's seat
 			if (vsAi && !getEndedAt(liveSnapshot) && getCurrentTurnIndex(liveSnapshot) === 1) {
@@ -253,17 +222,15 @@
 
 		if (hasNewMoves && newMoves.length > 0) {
 			const plyToAnimate =
-				vsAi && newMoves.length > 1 && moves.length > 0
-					? moves.length - 1
-					: lastStateSyncMoveCount;
+				vsAi && newMoves.length > 1 && moves.length > 0 ? moves.length - 1 : lastStateSyncMoveCount;
 			if (
-				isOpponentIncrementalMove(
-					moves,
-					plyToAnimate,
-					viewerPlayerIndex,
+				isOpponentIncrementalMove({
+					fullMoves: moves,
+					plyIndex: plyToAnimate,
+					viewerIndex: viewerPlayerIndex,
 					moveCountBeforeSync,
 					turnAtStartOfNewMoves
-				)
+				})
 			) {
 				animateOpponentMoveAtPly(plyToAnimate);
 			} else {
@@ -272,6 +239,36 @@
 		} else {
 			applySnapshot();
 		}
+	}
+
+	async function submitMovePayload(command: MakeMoveCommand) {
+		const moveCountBeforeSync = getMoves(liveSnapshot).length;
+		const turnAtStartOfNewMoves = getCurrentTurnIndex(liveSnapshot);
+
+		const res = await fetch(`/api/games/${gameId}/move`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(command)
+		});
+		const body = (await res.json()) as {
+			snapshot?: GameSnapshot;
+			error?: string;
+			errors?: string[];
+		};
+		if (!res.ok) {
+			gameMessage = body.error ?? 'Move failed';
+			return;
+		}
+		if (!body.snapshot) {
+			gameMessage = 'Invalid response';
+			return;
+		}
+
+		reconcileSnapshotWithOpponentAnimation(
+			body.snapshot,
+			moveCountBeforeSync,
+			turnAtStartOfNewMoves
+		);
 	}
 
 	function sendMove(from: number, to: number) {
@@ -290,6 +287,10 @@
 			from: fromStackIndex,
 			to: boardIndex
 		};
+		if (shouldUseRealtimePvp() && room) {
+			room.send('command', command);
+			return;
+		}
 		void submitMovePayload(command);
 	}
 
@@ -299,6 +300,10 @@
 			from: fromStackIndex,
 			to: toStackIndex
 		};
+		if (shouldUseRealtimePvp() && room) {
+			room.send('command', command);
+			return;
+		}
 		void submitMovePayload(command);
 	}
 
@@ -384,11 +389,86 @@
 	});
 
 	$effect(() => {
+		if (!shouldUseRealtimePvp()) {
+			roomStatus = 'opponent_connected';
+			return;
+		}
+
+		const wsUrl = colyseusUrl;
+		const userId = viewerUserId;
+		const persistedGameId = gameId;
+		let cancelled = false;
+		let activeRoom: Room | null = null;
+		roomStatus = 'connecting';
+
+		void connectPersistedGameRoom({
+			colyseusUrl: wsUrl,
+			gameId: persistedGameId,
+			userId,
+			onLeave: () => {
+				if (activeRoom) activeRoom = null;
+				room = null;
+				roomStatus = 'disconnected';
+			},
+			onEvent: (event) => {
+				debugLastEvent = event;
+				debugEvents = appendRecentEvent(debugEvents, event);
+
+				if (event.type === 'state_sync') {
+					const moveCountBeforeSync = getMoves(liveSnapshot).length;
+					const turnAtStartOfNewMoves = getCurrentTurnIndex(liveSnapshot);
+					reconcileSnapshotWithOpponentAnimation(
+						event.snapshot,
+						moveCountBeforeSync,
+						turnAtStartOfNewMoves
+					);
+					return;
+				}
+				if (event.type === 'presence_update') {
+					updateRoomStatusFromPresence(event.connectedPlayerIndexes);
+					return;
+				}
+				if (event.type === 'waiting_for_player') {
+					roomStatus = 'waiting_for_opponent';
+					return;
+				}
+				if (event.type === 'game_started') {
+					roomStatus = 'opponent_connected';
+					return;
+				}
+				if (event.type === 'invalid_move') {
+					gameMessage = event.message;
+				}
+			}
+		})
+			.then((joined) => {
+				if (cancelled) {
+					void joined.leave();
+					return;
+				}
+				activeRoom = joined;
+				room = joined;
+				roomStatus = 'waiting_for_opponent';
+			})
+			.catch(() => {
+				room = null;
+				roomStatus = 'disconnected';
+			});
+
+		return () => {
+			cancelled = true;
+			if (activeRoom) {
+				void activeRoom.leave();
+			}
+		};
+	});
+
+	$effect(() => {
 		if (!dev || typeof window === 'undefined') return;
-		setDebugRoom(null);
+		setDebugRoom(room);
 		setDebugHelpers({
-			room: null,
-			getRoomId: () => null,
+			room,
+			getRoomId: () => room?.roomId ?? null,
 			getSyncSeq: () => debugSyncSeq,
 			game,
 			getGame: () => game,
@@ -398,20 +478,39 @@
 			getSnapshot: () => debugSnapshot,
 			getMoves: () => debugSnapshot.moves,
 			sendMove,
-			awaitNextSync: async () => {
-				throw new Error('No realtime connection; reload the page to refresh state.');
+			awaitNextSync: async (timeoutMs = 5000) => {
+				if (!room) throw new Error('No room connected.');
+				const currentRoom = room;
+				const startSeq = debugSyncSeq;
+				return await new Promise<GameSnapshot>((resolve, reject) => {
+					const timeoutId = setTimeout(() => {
+						reject(new Error('Timed out waiting for state_sync.'));
+					}, timeoutMs);
+					const unsub = currentRoom.onMessage('event', (payload: unknown) => {
+						const parsed = payload as GameServerEvent;
+						if (parsed.type !== 'state_sync') return;
+						if (debugSyncSeq <= startSeq) return;
+						clearTimeout(timeoutId);
+						unsub();
+						resolve(parsed.snapshot);
+					});
+				});
 			},
-			sendMoveAndWait: async (from: number, to: number) => {
+			sendMoveAndWait: async (from: number, to: number, timeoutMs = 5000) => {
 				sendMove(from, to);
-				throw new Error('No realtime sync; use submit response or reload.');
+				return await (
+					window as Window & { __capstoneDebug?: CapstoneDebug }
+				).__capstoneDebug!.awaitNextSync(timeoutMs);
 			},
 			joinByRoomId: async () => {
-				console.warn('[capstone] joinByRoomId is not used without realtime.');
+				throw new Error('joinByRoomId is not supported on this page.');
 			},
 			clearEvents: () => {
 				debugEvents = [];
 			},
-			info: 'Debug helpers (HTTP moves; reload to see remote changes).',
+			info: room
+				? 'Debug helpers with realtime room support.'
+				: 'Debug helpers (HTTP fallback mode).',
 			animateStackMove: {
 				animateMove,
 				animateMoveFromStackIndices: (fromIndex: number, toIndex: number) => {
@@ -451,13 +550,10 @@
 			}`}
 		>
 			<div
-				class="relative isolate mx-auto flex min-h-0 w-full max-h-[calc(100dvh-13rem)] flex-1 overflow-hidden rounded-lg"
+				class="relative isolate mx-auto flex max-h-[calc(100dvh-13rem)] min-h-0 w-full flex-1 overflow-hidden rounded-lg"
 			>
 				{#if showWinConfetti}
-					<div
-						class="pointer-events-none absolute inset-0 z-0 overflow-hidden"
-						aria-hidden="true"
-					>
+					<div class="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
 						{#each confettiPieces as piece (piece.id)}
 							<span
 								class="confetti-piece"
