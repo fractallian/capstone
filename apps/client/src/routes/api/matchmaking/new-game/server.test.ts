@@ -112,6 +112,23 @@ describe('POST /api/matchmaking/new-game', () => {
 		expect(updateMock).not.toHaveBeenCalled();
 	});
 
+	it('prefers online-hosted candidates before offline-hosted ones', async () => {
+		findManyMock.mockResolvedValueOnce([
+			{ id: 'older-offline', player1Id: 'offline-1' },
+			{ id: 'newer-online', player1Id: 'online-1' }
+		]);
+		isOnlineMock.mockImplementation((userId: string) => userId === 'online-1');
+		returningMock.mockResolvedValueOnce([{ id: 'newer-online' }]);
+
+		const response = await POST({
+			locals: { session: { id: 's1' }, user: { id: 'u2' } }
+		} as Parameters<typeof POST>[0]);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({ gameId: 'newer-online' });
+		expect(updateMock).toHaveBeenCalledTimes(1);
+	});
+
 	it('claims and returns the oldest waiting game with an online host', async () => {
 		findManyMock.mockResolvedValueOnce([
 			{ id: 'game-offline', player1Id: 'offline-host' },
@@ -161,21 +178,50 @@ describe('POST /api/matchmaking/new-game', () => {
 		expect(updateMock).toHaveBeenCalledTimes(2);
 	});
 
-	it('returns null when candidates exist but no host is online', async () => {
+	it('claims an offline-hosted candidate when no host is online', async () => {
 		findManyMock.mockResolvedValueOnce([
 			{ id: 'game-1', player1Id: 'offline-1' },
 			{ id: 'game-2', player1Id: 'offline-2' }
 		]);
 		isOnlineMock.mockReturnValue(false);
-		findFirstMock.mockResolvedValueOnce(null);
-		insertValuesMock.mockResolvedValue(undefined);
+		returningMock.mockResolvedValueOnce([{ id: 'game-1' }]);
 
 		const response = await POST({
 			locals: { session: { id: 's1' }, user: { id: 'u2' } }
 		} as Parameters<typeof POST>[0]);
 
 		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({ gameId: 'game-1' });
+		expect(updateMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not return until waiting-game persistence finishes', async () => {
+		findManyMock.mockResolvedValueOnce([]);
+		findFirstMock.mockResolvedValueOnce(null);
+
+		let resolveInsert: (() => void) | null = null;
+		const insertBarrier = new Promise<void>((resolve) => {
+			resolveInsert = resolve;
+		});
+		insertValuesMock.mockImplementationOnce(() => insertBarrier);
+
+		const responsePromise = POST({
+			locals: { session: { id: 's1' }, user: { id: 'u2' } }
+		} as Parameters<typeof POST>[0]);
+
+		let settled = false;
+		void responsePromise.then(() => {
+			settled = true;
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(settled).toBe(false);
+
+		resolveInsert?.();
+		insertValuesMock.mockResolvedValue(undefined);
+
+		const response = await responsePromise;
+		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({ gameId: null });
-		expect(updateMock).not.toHaveBeenCalled();
 	});
 });

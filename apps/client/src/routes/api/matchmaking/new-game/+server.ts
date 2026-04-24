@@ -16,7 +16,8 @@ async function ensureWaitingGameForUser(userId: string): Promise<void> {
 			eq(game.player1Id, userId),
 			isNull(game.player2Id),
 			isNull(game.endedAt),
-			eq(game.vsAi, false)
+			eq(game.vsAi, false),
+			eq(game.vsSelf, false)
 		),
 		columns: { id: true }
 	});
@@ -29,6 +30,7 @@ async function ensureWaitingGameForUser(userId: string): Promise<void> {
 		player1Id: userId,
 		player2Id: null,
 		vsAi: false,
+		vsSelf: false,
 		startedAt: new Date()
 	});
 	await persistCapstoneSnapshot(
@@ -78,9 +80,14 @@ export const POST = async ({ locals }) => {
 		orderBy: [asc(game.startedAt)],
 		columns: { id: true, player1Id: true }
 	});
+	const onlineCandidates = waitingCandidates.filter((candidate) =>
+		realtimePresence.isOnline(candidate.player1Id)
+	);
+	const offlineCandidates = waitingCandidates.filter(
+		(candidate) => !realtimePresence.isOnline(candidate.player1Id)
+	);
 
-	for (const candidate of waitingCandidates) {
-		if (!realtimePresence.isOnline(candidate.player1Id)) continue;
+	for (const candidate of [...onlineCandidates, ...offlineCandidates]) {
 
 		const claimed = await db
 			.update(game)
@@ -103,6 +110,6 @@ export const POST = async ({ locals }) => {
 		return json({ gameId: claimed[0].id });
 	}
 
-	void ensureWaitingGameForUser(locals.user.id);
+	await ensureWaitingGameForUser(locals.user.id);
 	return json({ gameId: null });
 };
