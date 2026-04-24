@@ -24,7 +24,7 @@ export const POST = async ({ locals }) => {
 		vsSelf: true,
 		startedAt: new Date()
 	});
-	void persistCapstoneSnapshot(
+	await persistCapstoneSnapshot(
 		gameId,
 		buildCapstoneSnapshot(g, {
 			gameEnded: false,
@@ -32,9 +32,7 @@ export const POST = async ({ locals }) => {
 			winnerSeatIndex: null,
 			endedAt: null
 		})
-	).catch((error) => {
-		console.error('[capstone] failed to persist initial vs-self snapshot', { gameId, error });
-	});
+	);
 
 	setCurrentGameForUser(locals.user.id, gameId);
 

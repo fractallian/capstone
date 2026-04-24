@@ -67,18 +67,20 @@
 										: 'G'}
 						</div>
 						<div class="flex min-w-0 items-center gap-2">
-							{#if gameRecord.opponent?.image}
-								<img
-									src={gameRecord.opponent.image}
-									alt={getOpponentLabel(gameRecord.opponent)}
-									class="h-7 w-7 rounded-full object-cover"
-								/>
-							{:else}
-								<div
-									class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-700"
-								>
-									{getOpponentLabel(gameRecord.opponent).slice(0, 2).toUpperCase()}
-								</div>
+							{#if gameRecord.opponent?.id !== 'ai' && gameRecord.opponent?.id !== 'self'}
+								{#if gameRecord.opponent?.image}
+									<img
+										src={gameRecord.opponent.image}
+										alt={getOpponentLabel(gameRecord.opponent)}
+										class="h-7 w-7 rounded-full object-cover"
+									/>
+								{:else}
+									<div
+										class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-700"
+									>
+										{getOpponentLabel(gameRecord.opponent).slice(0, 2).toUpperCase()}
+									</div>
+								{/if}
 							{/if}
 							<p class="truncate text-sm font-medium text-slate-900">
 								{getOpponentLabel(gameRecord.opponent)}

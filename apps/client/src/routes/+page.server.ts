@@ -91,7 +91,7 @@ export const load = async ({ locals }) => {
 			opponent: gameRecord.vsAi
 				? { id: 'ai', name: 'CPU', image: null as string | null }
 				: gameRecord.vsSelf
-					? { id: 'self', name: 'vs Self', image: null as string | null }
+					? { id: 'self', name: 'Local Game', image: null as string | null }
 					: opponentId
 						? (opponentById.get(opponentId) ?? null)
 						: null,
@@ -140,7 +140,7 @@ export const load = async ({ locals }) => {
 					return { id: 'ai', name: 'CPU', image: null as string | null };
 				}
 				if (gameRecord.vsSelf) {
-					return { id: 'self', name: 'vs Self', image: null as string | null };
+					return { id: 'self', name: 'Local Game', image: null as string | null };
 				}
 				const opponentId =
 					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;

@@ -229,7 +229,7 @@
 										class="inline-flex cursor-pointer items-center rounded-lg border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-900 shadow-sm transition hover:bg-teal-100"
 										onclick={() => void startNewSelfGame()}
 									>
-										Play vs Self
+										Local Game
 									</button>
 								{/if}
 							</div>
