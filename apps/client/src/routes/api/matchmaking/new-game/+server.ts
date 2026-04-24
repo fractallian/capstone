@@ -1,12 +1,12 @@
 import { json } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
-import { gameSnapshotSchema } from '@capstone/contracts';
 import { Game } from '@capstone/game-logic';
-import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { boardState, game } from '$lib/server/db/schema';
+import { game } from '$lib/server/db/schema';
 import { buildCapstoneSnapshot } from '$lib/server/game/build-capstone-snapshot';
 import { persistCapstoneSnapshot } from '$lib/server/game/persist-capstone-snapshot';
+import { randomStartingTurnIndex } from '$lib/server/game/random-starting-turn-index';
 import { setCurrentGameForUser } from '$lib/server/game/set-current-game-for-user';
 import { realtimePresence } from '$lib/server/realtime/online-presence';
 
@@ -24,7 +24,7 @@ async function ensureWaitingGameForUser(userId: string): Promise<void> {
 	if (existingWaiting) return;
 
 	const gameId = randomUUID();
-	const g = new Game();
+	const g = new Game(randomStartingTurnIndex());
 	await db.insert(game).values({
 		id: gameId,
 		player1Id: userId,
@@ -45,24 +45,6 @@ async function ensureWaitingGameForUser(userId: string): Promise<void> {
 	setCurrentGameForUser(userId, gameId);
 }
 
-async function setClaimedGameTurnToPlayer2(gameId: string): Promise<void> {
-	const latestBoardState = await db.query.boardState.findFirst({
-		where: eq(boardState.gameId, gameId),
-		orderBy: [desc(boardState.createdAt)]
-	});
-	const parsed = gameSnapshotSchema.safeParse(latestBoardState?.board);
-	if (!parsed.success) return;
-
-	const snapshot = parsed.data;
-	await db.insert(boardState).values({
-		id: randomUUID(),
-		gameId,
-		board: {
-			...snapshot,
-			currentTurnIndex: 1
-		}
-	});
-}
 
 export const POST = async ({ locals }) => {
 	if (!locals.session || !locals.user) {
@@ -106,7 +88,6 @@ export const POST = async ({ locals }) => {
 
 		if (claimed.length === 0) continue;
 		setCurrentGameForUser(locals.user.id, claimed[0].id);
-		await setClaimedGameTurnToPlayer2(claimed[0].id);
 		return json({ gameId: claimed[0].id });
 	}
 

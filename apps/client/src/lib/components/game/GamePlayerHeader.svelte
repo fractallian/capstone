@@ -3,6 +3,7 @@
 		player1,
 		player2,
 		viewerPlayerIndex,
+		startingTurnIndex,
 		currentTurnIndex,
 		roomStatus,
 		gameMessage,
@@ -17,6 +18,7 @@
 		player1: { id: string | null; name: string | null; image: string | null } | null;
 		player2: { id: string | null; name: string | null; image: string | null } | null;
 		viewerPlayerIndex: 1 | 2;
+		startingTurnIndex: 0 | 1;
 		currentTurnIndex: 0 | 1;
 		roomStatus: 'connecting' | 'opponent_connected' | 'waiting_for_opponent' | 'disconnected';
 		gameMessage: string | null;
@@ -36,15 +38,18 @@
 		(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
 			(viewerPlayerIndex === 2 && currentTurnIndex === 1)
 	);
+	let isCurrentTurnPurple = $derived(currentTurnIndex === startingTurnIndex);
+	let winnerColorName = $derived.by(() => {
+		if (winnerSeatIndex === null) return null;
+		return winnerSeatIndex === startingTurnIndex ? 'Purple' : 'Gold';
+	});
 
 	let turnBubbleLabel = $derived(
 		isGameEnded
 			? vsSelf
-				? winnerSeatIndex === 1
-					? 'Gold Wins!'
-					: winnerSeatIndex === 0
-						? 'Purple Wins!'
-						: 'Game over'
+				? winnerColorName
+					? `${winnerColorName} Wins!`
+					: 'Game over'
 				: gameOutcome === 'win'
 					? 'You won!'
 					: gameOutcome === 'loss'
@@ -53,7 +58,7 @@
 			: isAiThinking
 				? 'CPU thinking…'
 				: vsSelf
-					? currentTurnIndex === 0
+					? isCurrentTurnPurple
 						? "Purple's Turn"
 						: "Gold's Turn"
 					: isViewerTurn
@@ -66,9 +71,9 @@
 	let turnBubbleClass = $derived(
 		isGameEnded
 			? vsSelf
-				? winnerSeatIndex === 1
+				? winnerColorName === 'Gold'
 					? 'bg-amber-50 text-amber-950 ring-amber-200'
-					: winnerSeatIndex === 0
+					: winnerColorName === 'Purple'
 						? 'bg-violet-50 text-violet-950 ring-violet-200'
 						: 'bg-slate-100 text-slate-700 ring-slate-200'
 				: gameOutcome === 'win'
@@ -77,7 +82,7 @@
 						? 'bg-rose-50 text-rose-900 ring-rose-200'
 						: 'bg-slate-100 text-slate-700 ring-slate-200'
 			: vsSelf
-				? currentTurnIndex === 0
+				? isCurrentTurnPurple
 					? 'bg-violet-50 text-violet-950 ring-violet-200'
 					: 'bg-amber-50 text-amber-950 ring-amber-200'
 				: isViewerTurn

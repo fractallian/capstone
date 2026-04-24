@@ -6,6 +6,7 @@ import { db } from '$lib/server/db';
 import { game } from '$lib/server/db/schema';
 import { buildCapstoneSnapshot } from '$lib/server/game/build-capstone-snapshot';
 import { persistCapstoneSnapshot } from '$lib/server/game/persist-capstone-snapshot';
+import { randomStartingTurnIndex } from '$lib/server/game/random-starting-turn-index';
 import { setCurrentGameForUser } from '$lib/server/game/set-current-game-for-user';
 
 export const POST = async ({ locals }) => {
@@ -18,7 +19,7 @@ export const POST = async ({ locals }) => {
 	}
 
 	const gameId = randomUUID();
-	const g = new Game();
+	const g = new Game(randomStartingTurnIndex());
 
 	await db.insert(game).values({
 		id: gameId,

@@ -59,9 +59,14 @@ export async function applyHttpGameMove(params: {
 	// ── Reconstruct in-memory game ────────────────────────────────────────────
 	let g: Game;
 	if (gamePersisted && latestBoard?.board) {
-		const raw = latestBoard.board as { moves?: { from: number; to: number }[]; currentTurnIndex?: 0 | 1 };
+		const raw = latestBoard.board as {
+			moves?: { from: number; to: number }[];
+			startingTurnIndex?: 0 | 1;
+			currentTurnIndex?: 0 | 1;
+		};
 		const moves = Array.isArray(raw?.moves) ? raw.moves : [];
-		g = Game.deserialize(moves);
+		const startingTurnIndex = raw?.startingTurnIndex === 1 ? 1 : 0;
+		g = Game.deserialize(moves, startingTurnIndex);
 		if (raw?.currentTurnIndex === 1) {
 			g.currentTurn = g.player2;
 		} else {

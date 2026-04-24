@@ -136,16 +136,6 @@ describe('POST /api/matchmaking/new-game', () => {
 		]);
 		isOnlineMock.mockImplementation((userId: string) => userId === 'online-host');
 		returningMock.mockResolvedValueOnce([{ id: 'game-1' }]);
-		boardStateFindFirstMock.mockResolvedValueOnce({
-			board: {
-				moves: [],
-				currentTurnIndex: 0,
-				winnerPlayerId: null,
-				winnerSeatIndex: null,
-				endedAt: null
-			}
-		});
-		insertValuesMock.mockResolvedValue(undefined);
 
 		const response = await POST({
 			locals: { session: { id: 's1' }, user: { id: 'u2' } }
@@ -156,7 +146,6 @@ describe('POST /api/matchmaking/new-game', () => {
 		expect(updateMock).toHaveBeenCalledTimes(1);
 		expect(setMock).toHaveBeenCalledWith({ player2Id: 'u2' });
 		expect(whereMock).toHaveBeenCalledTimes(1);
-		expect(insertMock).toHaveBeenCalled();
 		expect(isOnlineMock).toHaveBeenCalledWith('offline-host');
 		expect(isOnlineMock).toHaveBeenCalledWith('online-host');
 	});
@@ -199,7 +188,7 @@ describe('POST /api/matchmaking/new-game', () => {
 		findManyMock.mockResolvedValueOnce([]);
 		findFirstMock.mockResolvedValueOnce(null);
 
-		let resolveInsert: (() => void) | null = null;
+		let resolveInsert!: () => void;
 		const insertBarrier = new Promise<void>((resolve) => {
 			resolveInsert = resolve;
 		});
@@ -217,7 +206,7 @@ describe('POST /api/matchmaking/new-game', () => {
 		await Promise.resolve();
 		expect(settled).toBe(false);
 
-		resolveInsert?.();
+		resolveInsert();
 		insertValuesMock.mockResolvedValue(undefined);
 
 		const response = await responsePromise;

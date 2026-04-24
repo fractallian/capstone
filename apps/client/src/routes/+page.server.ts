@@ -2,6 +2,7 @@ import { env } from '$env/dynamic/private';
 import { desc, or, eq, inArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { boardState, game, user } from '$lib/server/db/schema';
+import { realtimePresence } from '$lib/server/realtime/online-presence';
 export const load = async ({ locals }) => {
 		const lobbyGames = locals.user
 		? await db
@@ -85,6 +86,10 @@ export const load = async ({ locals }) => {
 		const viewerPlayerIndex = gameRecord.player1Id === locals.user?.id ? 1 : 2;
 		const opponentId =
 			gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
+		const opponentOnline =
+			gameRecord.vsAi || gameRecord.vsSelf || !opponentId
+				? null
+				: realtimePresence.isOnline(opponentId);
 
 		return {
 			id: gameRecord.id,
@@ -98,6 +103,7 @@ export const load = async ({ locals }) => {
 			status: 'in_progress' as const,
 			startedAt: gameRecord.startedAt.toISOString(),
 			endedAt: null,
+			opponentOnline,
 			// vsSelf: always your turn (you play both sides)
 			isYourTurn:
 				gameRecord.vsSelf
@@ -108,6 +114,9 @@ export const load = async ({ locals }) => {
 	});
 
 	const inProgressGames = inProgressSnapshots.sort((a, b) => {
+		const aOnlineRank = a.opponentOnline === true ? 0 : a.opponentOnline === false ? 1 : 2;
+		const bOnlineRank = b.opponentOnline === true ? 0 : b.opponentOnline === false ? 1 : 2;
+		if (aOnlineRank !== bOnlineRank) return aOnlineRank - bOnlineRank;
 		if (a.isYourTurn === b.isYourTurn) return 0;
 		return a.isYourTurn ? -1 : 1;
 	});

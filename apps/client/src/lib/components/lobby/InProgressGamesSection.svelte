@@ -10,6 +10,7 @@
 			status: 'in_progress';
 			startedAt: string;
 			endedAt: null;
+			opponentOnline: boolean | null;
 			isYourTurn: boolean;
 		}[];
 		formatDate: (value: string) => string;
@@ -51,6 +52,13 @@
 							</div>
 						{/if}
 						<p class="text-sm font-medium text-slate-900">{getOpponentLabel(gameRecord.opponent)}</p>
+						{#if gameRecord.opponentOnline !== null}
+							<span
+								class={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${gameRecord.opponentOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}
+							>
+								{gameRecord.opponentOnline ? 'Online' : 'Offline'}
+							</span>
+						{/if}
 					</div>
 					<p class="mt-1 text-xs text-slate-600">Started {formatDate(gameRecord.startedAt)}</p>
 				</a>

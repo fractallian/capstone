@@ -7,7 +7,8 @@ function coerceStoredBoardJson(raw: unknown): unknown {
 	const o = raw as Record<string, unknown>;
 	const out: Record<string, unknown> = { ...o };
 	const t = o['currentTurnIndex'];
-	out['currentTurnIndex'] = t === 1 || t === '1' ? 1 : 0;
+	const currentTurnIndex = t === 1 || t === '1' ? 1 : 0;
+	out['currentTurnIndex'] = currentTurnIndex;
 	if (Array.isArray(o['moves'])) {
 		out['moves'] = (o['moves'] as unknown[]).map((m) => {
 			if (!m || typeof m !== 'object' || Array.isArray(m)) return m;
@@ -18,6 +19,14 @@ function coerceStoredBoardJson(raw: unknown): unknown {
 			};
 		});
 	}
+	const s = o['startingTurnIndex'];
+	if (s === 0 || s === 1 || s === '0' || s === '1') {
+		out['startingTurnIndex'] = Number(s);
+		return out;
+	}
+	const moveCount = Array.isArray(out['moves']) ? out['moves'].length : 0;
+	out['startingTurnIndex'] =
+		moveCount % 2 === 0 ? currentTurnIndex : currentTurnIndex === 0 ? 1 : 0;
 	return out;
 }
 

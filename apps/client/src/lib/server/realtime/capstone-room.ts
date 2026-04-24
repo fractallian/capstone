@@ -13,6 +13,7 @@ import { persistCapstoneSnapshot } from '$lib/server/game/persist-capstone-snaps
 import { clearCurrentGameForUser } from '$lib/server/game/clear-current-game-for-user';
 import { setCurrentGameForUser } from '$lib/server/game/set-current-game-for-user';
 import type { SnapshotMeta } from '$lib/server/game/snapshot-meta';
+import { randomStartingTurnIndex } from '$lib/server/game/random-starting-turn-index';
 import { realtimePresence } from '$lib/server/realtime/online-presence';
 const { Room } = colyseusPkg;
 
@@ -23,7 +24,7 @@ type JoinOptions = {
 
 export class CapstoneRoom extends Room {
 	maxClients = 2;
-	private game = new Game();
+	private game = new Game(randomStartingTurnIndex());
 	private gameId: string = randomUUID();
 	private gamePersisted = false;
 	private gameEnded = false;
@@ -72,7 +73,7 @@ export class CapstoneRoom extends Room {
 				)
 			: null;
 		if (parsed) {
-			this.game = Game.deserialize(parsed.moves);
+			this.game = Game.deserialize(parsed.moves, parsed.startingTurnIndex);
 			this.game.currentTurn = parsed.currentTurnIndex === 1 ? this.game.player2 : this.game.player1;
 			this.winnerSeatIndex = parsed.winnerSeatIndex ?? null;
 			this.winnerPlayerId = parsed.winnerPlayerId ?? null;
@@ -123,11 +124,29 @@ export class CapstoneRoom extends Room {
 
 		this.onMessage('command', async (client, payload) => {
 			const parsed = gameCommandSchema.safeParse(payload);
-			if (!parsed.success || parsed.data.type !== 'make_move') {
+			if (!parsed.success) {
 				client.send('event', {
 					type: 'invalid_move',
 					message: 'Malformed command payload.',
 					errors: ['malformed command payload']
+				});
+				return;
+			}
+			if (parsed.data.type === 'request_sync') {
+				const hasSecondPlayer = Boolean(this.playerUserIdByIndex.get(1));
+				client.send('event', {
+					type: hasSecondPlayer ? 'game_started' : 'waiting_for_player',
+					gameId: this.gameId
+				});
+				client.send('event', {
+					type: 'presence_update',
+					gameId: this.gameId,
+					connectedPlayerIndexes: this.getConnectedPlayerIndexes()
+				});
+				client.send('event', {
+					type: 'state_sync',
+					gameId: this.gameId,
+					snapshot: await this.loadLatestSnapshot()
 				});
 				return;
 			}

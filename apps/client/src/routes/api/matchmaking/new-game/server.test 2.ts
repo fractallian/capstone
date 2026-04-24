@@ -97,16 +97,6 @@ describe('POST /api/matchmaking/new-game', () => {
 	it('claims and returns a waiting game id', async () => {
 		findFirstMock.mockResolvedValueOnce({ id: 'game-1' });
 		returningMock.mockResolvedValueOnce([{ id: 'game-1' }]);
-		boardStateFindFirstMock.mockResolvedValueOnce({
-			board: {
-				moves: [],
-				currentTurnIndex: 0,
-				winnerPlayerId: null,
-				winnerSeatIndex: null,
-				endedAt: null
-			}
-		});
-		insertValuesMock.mockResolvedValue(undefined);
 
 		const response = await POST({
 			locals: { session: { id: 's1' }, user: { id: 'u2' } }

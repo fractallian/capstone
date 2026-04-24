@@ -1,3 +1,4 @@
+import { PlayerColor } from './Player';
 /**
  * Human-readable snapshot for LLM prompts: board tops, pool tops, whose turn.
  * Indices match Game (0–15 board row-major; P1 pools 16–18; P2 pools 19–21).
@@ -33,8 +34,8 @@ export function describeGameStateForPrompt(game) {
         const top = game.stacks[idx].topPiece();
         p2Parts.push(`${idx}:${top ? `P2 sz${top.size}` : 'empty'}`);
     }
-    lines.push(`  Player 1 (Black): ${p1Parts.join(' | ')}`);
-    lines.push(`  Player 2 (White): ${p2Parts.join(' | ')}`);
+    lines.push(`  Player 1 (${game.player1.color === PlayerColor.Black ? 'Black' : 'White'}): ${p1Parts.join(' | ')}`);
+    lines.push(`  Player 2 (${game.player2.color === PlayerColor.Black ? 'Black' : 'White'}): ${p2Parts.join(' | ')}`);
     const turn = game.currentTurnIndex();
     lines.push('');
     lines.push(`Turn: Player ${turn + 1} (currentTurnIndex=${turn}). Only that player may move; "from" must be a stack where they own the top piece.`);

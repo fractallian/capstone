@@ -9,6 +9,7 @@ export const serializedMoveSchema = z.object({
 
 export const gameSnapshotSchema = z.object({
 	moves: z.array(serializedMoveSchema),
+	startingTurnIndex: z.union([z.literal(0), z.literal(1)]).default(0),
 	currentTurnIndex: z.union([z.literal(0), z.literal(1)]),
 	winnerPlayerId: z.string().nullable().default(null),
 	/** Present when the game ended; identifies the winning seat even if that seat has no user id (e.g. AI). */
@@ -21,8 +22,14 @@ export const makeMoveCommandSchema = z.object({
 	from: stackIndexSchema,
 	to: stackIndexSchema
 });
+export const requestSyncCommandSchema = z.object({
+	type: z.literal('request_sync')
+});
 
-export const gameCommandSchema = z.discriminatedUnion('type', [makeMoveCommandSchema]);
+export const gameCommandSchema = z.discriminatedUnion('type', [
+	makeMoveCommandSchema,
+	requestSyncCommandSchema
+]);
 
 export const gameStateSyncEventSchema = z.object({
 	type: z.literal('state_sync'),
@@ -64,6 +71,7 @@ export type StackIndex = z.infer<typeof stackIndexSchema>;
 export type SerializedMoveContract = z.infer<typeof serializedMoveSchema>;
 export type GameSnapshot = z.infer<typeof gameSnapshotSchema>;
 export type MakeMoveCommand = z.infer<typeof makeMoveCommandSchema>;
+export type RequestSyncCommand = z.infer<typeof requestSyncCommandSchema>;
 export type GameCommand = z.infer<typeof gameCommandSchema>;
 export type GameWaitingEvent = z.infer<typeof gameWaitingEventSchema>;
 export type GameStartedEvent = z.infer<typeof gameStartedEventSchema>;

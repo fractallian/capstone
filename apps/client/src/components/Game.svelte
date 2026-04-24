@@ -4,11 +4,12 @@
 	import Pool from './Pool.svelte';
 	import type { StackProps } from './Stack.svelte';
 	import { setCapstoneGameBoardRoot } from '$lib/realtime/client-events';
-	import { Game, Move, PlayerColor, type SerializedMove } from '@capstone/game-logic';
+	import { Game, Move, type SerializedMove } from '@capstone/game-logic';
 
 	export type GameProps = {
 		moves: SerializedMove[];
 		movesSyncKey: string;
+		startingTurnIndex: 0 | 1;
 		/** Must match persisted snapshot; `deserialize(moves)` alone is wrong at ply 0 when seat 2 starts. */
 		currentTurnIndex: 0 | 1;
 		viewerPlayerIndex: 1 | 2;
@@ -21,6 +22,7 @@
 	let {
 		moves,
 		movesSyncKey,
+		startingTurnIndex,
 		currentTurnIndex,
 		viewerPlayerIndex,
 		vsSelf = false,
@@ -43,13 +45,12 @@
 		return () => setCapstoneGameBoardRoot(null);
 	});
 
-	function hydrateGame(movesList: SerializedMove[], turn: 0 | 1): Game {
-		const g = Game.deserialize(movesList);
+	function hydrateGame(movesList: SerializedMove[], startingTurn: 0 | 1, turn: 0 | 1): Game {
+		const g = Game.deserialize(movesList, startingTurn);
 		g.currentTurn = turn === 1 ? g.player2 : g.player1;
 		return g;
 	}
-
-	let localGame = $derived(hydrateGame(localMoves, currentTurnIndex));
+	let localGame = $derived(hydrateGame(localMoves, startingTurnIndex, currentTurnIndex));
 
 	let localStacks = $derived.by<StackProps[]>(() =>
 		localGame.stacks.map((stack) => ({
@@ -62,9 +63,9 @@
 
 	let draggableColor = $derived.by(() => {
 		if (vsSelf) {
-			return currentTurnIndex === 0 ? PlayerColor.Black : PlayerColor.White;
+			return localGame.currentTurn.color;
 		}
-		return viewerPlayerIndex === 1 ? PlayerColor.Black : PlayerColor.White;
+		return viewerPlayerIndex === 1 ? localGame.player1.color : localGame.player2.color;
 	});
 	let interactiveStacks = $derived.by<StackProps[]>(() =>
 		localStacks.map((stack, stackIndex) => {
@@ -98,7 +99,7 @@
 	);
 
 	function isMoveLegal(fromStackIndex: number, toStackIndex: number): boolean {
-		const g = hydrateGame(localMoves, currentTurnIndex);
+		const g = hydrateGame(localMoves, startingTurnIndex, currentTurnIndex);
 		if (
 			fromStackIndex < 0 ||
 			fromStackIndex >= g.stacks.length ||

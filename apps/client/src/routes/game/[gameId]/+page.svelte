@@ -5,6 +5,7 @@
 	import type { SerializedMove } from '@capstone/game-logic';
 	import { Game } from '@capstone/game-logic';
 	import {
+		type GameCommand,
 		type GameServerEvent,
 		type GameSnapshot,
 		type MakeMoveCommand
@@ -28,6 +29,7 @@
 	type GameStateLike =
 		| {
 				moves?: SerializedMove[];
+				startingTurnIndex?: 0 | 1;
 				currentTurnIndex?: 0 | 1;
 				winnerPlayerId?: string | null;
 				winnerSeatIndex?: 0 | 1 | null;
@@ -82,7 +84,22 @@
 
 	function getCurrentTurnIndex(gameState: GameStateLike): 0 | 1 {
 		if (!gameState || Array.isArray(gameState)) return 0;
-		return Number(gameState.currentTurnIndex) === 1 ? 1 : 0;
+		const rawTurn = (gameState as { currentTurnIndex?: unknown }).currentTurnIndex;
+		if (rawTurn === 0 || rawTurn === 1) return rawTurn;
+		if (rawTurn === '0' || rawTurn === '1') return Number(rawTurn) as 0 | 1;
+		return 0;
+	}
+
+	function getStartingTurnIndex(gameState: GameStateLike): 0 | 1 {
+		if (!gameState || Array.isArray(gameState)) return 0;
+		const rawStartingTurn = (gameState as { startingTurnIndex?: unknown }).startingTurnIndex;
+		if (rawStartingTurn === 0 || rawStartingTurn === 1) return rawStartingTurn;
+		if (rawStartingTurn === '0' || rawStartingTurn === '1') {
+			return Number(rawStartingTurn) as 0 | 1;
+		}
+		const currentTurn = getCurrentTurnIndex(gameState);
+		const moveCount = getMoves(gameState).length;
+		return moveCount % 2 === 0 ? currentTurn : currentTurn === 0 ? 1 : 0;
 	}
 
 	function getWinnerPlayerId(gameState: GameStateLike): string | null {
@@ -128,13 +145,14 @@
 
 	function hydrateGameFromSnapshotState(snapshot: GameStateLike): Game {
 		const moves = getMoves(snapshot);
-		const g = Game.deserialize(moves);
+		const g = Game.deserialize(moves, getStartingTurnIndex(snapshot));
 		if (!snapshot || Array.isArray(snapshot)) return g;
 		g.currentTurn = getCurrentTurnIndex(snapshot) === 1 ? g.player2 : g.player1;
 		return g;
 	}
 
 	let game = $derived(hydrateGameFromSnapshotState(liveSnapshot));
+	let startingTurnIndex = $derived(getStartingTurnIndex(liveSnapshot));
 	let currentTurnIndex = $derived(getCurrentTurnIndex(liveSnapshot));
 	let winnerPlayerId = $derived(getWinnerPlayerId(liveSnapshot));
 	let winnerSeatIndex = $derived(getWinnerSeatIndex(liveSnapshot));
@@ -161,6 +179,7 @@
 	let canInteract = $derived(!isGameEnded && (vsSelf ? true : isViewerTurn && !isAiThinking));
 	let debugSnapshot = $derived<GameSnapshot>({
 		moves: getMoves(liveSnapshot),
+		startingTurnIndex,
 		currentTurnIndex,
 		winnerPlayerId,
 		winnerSeatIndex: winnerSeatIndex === null ? undefined : winnerSeatIndex,
@@ -257,6 +276,7 @@
 				rollbackSnapshot = liveSnapshot;
 				const optimisticSnapshot: GameSnapshot = {
 					moves: optimisticGame.serialize(),
+					startingTurnIndex: getStartingTurnIndex(liveSnapshot),
 					currentTurnIndex: optimisticGame.currentTurnIndex() as 0 | 1,
 					winnerPlayerId: getWinnerPlayerId(liveSnapshot),
 					winnerSeatIndex: getWinnerSeatIndex(liveSnapshot) ?? undefined,
@@ -387,6 +407,7 @@
 		const aiWinner = g.board.winner();
 		const optimistic: GameSnapshot = {
 			moves: g.serialize(),
+			startingTurnIndex: getStartingTurnIndex(liveSnapshot),
 			currentTurnIndex: g.currentTurnIndex() as 0 | 1,
 			winnerPlayerId: null,
 			winnerSeatIndex: aiWinner ? 1 : undefined,
@@ -423,6 +444,34 @@
 	$effect(() => {
 		if (liveSnapshot === null) {
 			liveSnapshot = gameState;
+		}
+	});
+
+	$effect(() => {
+		if (!liveSnapshot || Array.isArray(liveSnapshot)) return;
+		const moves = getMoves(liveSnapshot);
+		const snapshotTurn = getCurrentTurnIndex(liveSnapshot);
+		const snapshotStartingTurn = getStartingTurnIndex(liveSnapshot);
+		try {
+			const reconstructedTurn = Game.deserialize(moves, snapshotStartingTurn).currentTurnIndex() as
+				| 0
+				| 1;
+			if (snapshotTurn !== reconstructedTurn) {
+				console.warn('[capstone] turn divergence detected', {
+					gameId,
+					snapshotStartingTurnIndex: snapshotStartingTurn,
+					snapshotTurnIndex: snapshotTurn,
+					reconstructedTurnIndex: reconstructedTurn,
+					moveCount: moves.length
+				});
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			console.warn('[capstone] failed to reconstruct game turn for divergence check', {
+				gameId,
+				moveCount: moves.length,
+				error: message
+			});
 		}
 	});
 
@@ -492,7 +541,11 @@
 				}
 				activeRoom = joined;
 				room = joined;
-				roomStatus = 'waiting_for_opponent';
+				if (roomStatus === 'connecting') {
+					roomStatus = 'waiting_for_opponent';
+				}
+				const requestSync: GameCommand = { type: 'request_sync' };
+				joined.send('command', requestSync);
 			})
 			.catch(() => {
 				room = null;
@@ -577,6 +630,7 @@
 			{player1}
 			{player2}
 			{viewerPlayerIndex}
+			{startingTurnIndex}
 			{currentTurnIndex}
 			{winnerSeatIndex}
 			{roomStatus}
@@ -609,6 +663,7 @@
 					<GameComponent
 						moves={getMoves(liveSnapshot)}
 						{movesSyncKey}
+						{startingTurnIndex}
 						{currentTurnIndex}
 						{viewerPlayerIndex}
 						{vsSelf}

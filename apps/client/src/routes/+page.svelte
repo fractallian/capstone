@@ -15,6 +15,7 @@
 				status: 'in_progress';
 				startedAt: string;
 				endedAt: null;
+				opponentOnline: boolean | null;
 				isYourTurn: boolean;
 			}[];
 			waitingGames: {

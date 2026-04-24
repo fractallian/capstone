@@ -20,10 +20,11 @@ export declare class Game {
     player1: Player;
     player2: Player;
     board: Board;
+    startingTurnIndex: 0 | 1;
     currentTurn: Player;
     moves: Move[];
     stacks: Stack[];
-    constructor();
+    constructor(startingTurnIndex?: 0 | 1);
     makeMove(fromStack: Stack, toStack: Stack, validate?: boolean): void;
     currentTurnIndex(): 0 | 1;
     serialize(): SerializedMove[];
@@ -31,5 +32,5 @@ export declare class Game {
      * Returns a new Game instance that is a clone of the current game
      */
     clone(): Game;
-    static deserialize(moves: SerializedMove[]): Game;
+    static deserialize(moves: SerializedMove[], startingTurnIndex?: 0 | 1): Game;
 }
