@@ -111,9 +111,7 @@ describe('POST /api/matchmaking/new-game', () => {
 	});
 
 	it('retries when first claim loses race and then succeeds', async () => {
-		findFirstMock
-			.mockResolvedValueOnce({ id: 'game-1' })
-			.mockResolvedValueOnce({ id: 'game-2' });
+		findFirstMock.mockResolvedValueOnce({ id: 'game-1' }).mockResolvedValueOnce({ id: 'game-2' });
 		returningMock.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'game-2' }]);
 
 		const response = await POST({

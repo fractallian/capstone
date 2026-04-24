@@ -4,7 +4,7 @@ import { db } from '$lib/server/db';
 import { boardState, game, user } from '$lib/server/db/schema';
 import { realtimePresence } from '$lib/server/realtime/online-presence';
 export const load = async ({ locals }) => {
-		const lobbyGames = locals.user
+	const lobbyGames = locals.user
 		? await db
 				.select({
 					id: game.id,
@@ -51,10 +51,12 @@ export const load = async ({ locals }) => {
 	);
 
 	const waitingGameRows = lobbyGames.filter(
-		(gameRecord) => !gameRecord.endedAt && !gameRecord.player2Id && !gameRecord.vsAi && !gameRecord.vsSelf
+		(gameRecord) =>
+			!gameRecord.endedAt && !gameRecord.player2Id && !gameRecord.vsAi && !gameRecord.vsSelf
 	);
 	const inProgressGameRows = lobbyGames.filter(
-		(gameRecord) => !gameRecord.endedAt && (!!gameRecord.player2Id || gameRecord.vsAi || gameRecord.vsSelf)
+		(gameRecord) =>
+			!gameRecord.endedAt && (!!gameRecord.player2Id || gameRecord.vsAi || gameRecord.vsSelf)
 	);
 	const inProgressGameIds = inProgressGameRows.map((gameRecord) => gameRecord.id);
 	const inProgressBoardRows =
@@ -105,11 +107,10 @@ export const load = async ({ locals }) => {
 			endedAt: null,
 			opponentOnline,
 			// vsSelf: always your turn (you play both sides)
-			isYourTurn:
-				gameRecord.vsSelf
-					? true
-					: (viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
-						(viewerPlayerIndex === 2 && currentTurnIndex === 1)
+			isYourTurn: gameRecord.vsSelf
+				? true
+				: (viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
+					(viewerPlayerIndex === 2 && currentTurnIndex === 1)
 		};
 	});
 
@@ -153,7 +154,7 @@ export const load = async ({ locals }) => {
 				}
 				const opponentId =
 					gameRecord.player1Id === locals.user?.id ? gameRecord.player2Id : gameRecord.player1Id;
-				return opponentId ? opponentById.get(opponentId) ?? null : null;
+				return opponentId ? (opponentById.get(opponentId) ?? null) : null;
 			})(),
 			result: (() => {
 				if (gameRecord.vsSelf) {

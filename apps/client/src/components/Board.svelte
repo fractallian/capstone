@@ -9,9 +9,7 @@
 	let { stacks, class: className }: BoardProps = $props();
 
 	const BOARD_CELLS = 16 as const;
-	let cells = $derived(
-		Array.from({ length: BOARD_CELLS }, (_, i) => stacks[i] ?? { pieces: [] })
-	);
+	let cells = $derived(Array.from({ length: BOARD_CELLS }, (_, i) => stacks[i] ?? { pieces: [] }));
 </script>
 
 <div class={`board ${className ?? ''}`.trim()}>

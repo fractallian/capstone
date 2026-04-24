@@ -82,9 +82,7 @@
 	let player1PoolStacks = $derived(interactiveStacks.slice(16, 19));
 	let player2PoolStacks = $derived(interactiveStacks.slice(19, 22));
 	/** Viewer always on the left (matches board mock); stack indices stay server-correct. */
-	let viewerPoolStacks = $derived(
-		viewerPlayerIndex === 1 ? player1PoolStacks : player2PoolStacks
-	);
+	let viewerPoolStacks = $derived(viewerPlayerIndex === 1 ? player1PoolStacks : player2PoolStacks);
 	let opponentPoolStacks = $derived(
 		viewerPlayerIndex === 1 ? player2PoolStacks : player1PoolStacks
 	);
@@ -165,58 +163,57 @@
 				})
 			);
 
-			const dropzones = Array.from(
-				root.querySelectorAll<HTMLElement>('.stack--droppable')
-			).map((element) =>
-				interact(element).dropzone({
-					accept: '.stack__layer--draggable',
-					overlap: 0.2,
-					ondragenter(event) {
-						const el = event.target as HTMLElement;
-						const toStackIndex = Number(el.dataset.stackIndex);
-						const draggableElement = event.relatedTarget as HTMLElement | null;
-						const fromStackIndex = Number(
-							draggableElement?.closest<HTMLElement>('.stack')?.dataset.stackIndex
-						);
-						clearDropHoverClasses(el);
-						if (
-							!Number.isInteger(fromStackIndex) ||
-							!Number.isInteger(toStackIndex) ||
-							fromStackIndex === toStackIndex
-						) {
-							return;
+			const dropzones = Array.from(root.querySelectorAll<HTMLElement>('.stack--droppable')).map(
+				(element) =>
+					interact(element).dropzone({
+						accept: '.stack__layer--draggable',
+						overlap: 0.2,
+						ondragenter(event) {
+							const el = event.target as HTMLElement;
+							const toStackIndex = Number(el.dataset.stackIndex);
+							const draggableElement = event.relatedTarget as HTMLElement | null;
+							const fromStackIndex = Number(
+								draggableElement?.closest<HTMLElement>('.stack')?.dataset.stackIndex
+							);
+							clearDropHoverClasses(el);
+							if (
+								!Number.isInteger(fromStackIndex) ||
+								!Number.isInteger(toStackIndex) ||
+								fromStackIndex === toStackIndex
+							) {
+								return;
+							}
+							el.classList.add(
+								isMoveLegal(fromStackIndex, toStackIndex)
+									? 'stack--drop-hover-valid'
+									: 'stack--drop-hover-invalid'
+							);
+						},
+						ondragleave(event) {
+							clearDropHoverClasses(event.target as HTMLElement);
+						},
+						ondrop(event) {
+							const target = event.target as HTMLElement;
+							const toStackIndex = Number(target.dataset.stackIndex);
+							const draggableElement = event.relatedTarget as HTMLElement;
+							const fromStackIndex = Number(
+								draggableElement.closest<HTMLElement>('.stack')?.dataset.stackIndex
+							);
+
+							clearDropHoverClasses(target);
+							resetDraggedPiece(draggableElement);
+
+							if (!Number.isInteger(fromStackIndex) || !Number.isInteger(toStackIndex)) return;
+							if (fromStackIndex === toStackIndex) return;
+							if (!isMoveLegal(fromStackIndex, toStackIndex)) return;
+
+							localMoves = [...localMoves, { from: fromStackIndex, to: toStackIndex }];
+							void onMove?.(fromStackIndex, toStackIndex);
+						},
+						ondropdeactivate(event) {
+							clearDropHoverClasses(event.target as HTMLElement);
 						}
-						el.classList.add(
-							isMoveLegal(fromStackIndex, toStackIndex)
-								? 'stack--drop-hover-valid'
-								: 'stack--drop-hover-invalid'
-						);
-					},
-					ondragleave(event) {
-						clearDropHoverClasses(event.target as HTMLElement);
-					},
-					ondrop(event) {
-						const target = event.target as HTMLElement;
-						const toStackIndex = Number(target.dataset.stackIndex);
-						const draggableElement = event.relatedTarget as HTMLElement;
-						const fromStackIndex = Number(
-							draggableElement.closest<HTMLElement>('.stack')?.dataset.stackIndex
-						);
-
-						clearDropHoverClasses(target);
-						resetDraggedPiece(draggableElement);
-
-						if (!Number.isInteger(fromStackIndex) || !Number.isInteger(toStackIndex)) return;
-						if (fromStackIndex === toStackIndex) return;
-						if (!isMoveLegal(fromStackIndex, toStackIndex)) return;
-
-						localMoves = [...localMoves, { from: fromStackIndex, to: toStackIndex }];
-						void onMove?.(fromStackIndex, toStackIndex);
-					},
-					ondropdeactivate(event) {
-						clearDropHoverClasses(event.target as HTMLElement);
-					}
-				})
+					})
 			);
 
 			cleanup = () => {
@@ -233,10 +230,11 @@
 </script>
 
 <div class="game-viewport">
-	<div class={`game ${vsSelf ? 'game--vs-self' : ''} ${className ?? ''}`.trim()} bind:this={gameElement}>
-		<div
-			class={`game__pool game__pool--viewer ${isViewerTurn ? 'game__pool--turn' : ''}`.trim()}
-		>
+	<div
+		class={`game ${vsSelf ? 'game--vs-self' : ''} ${className ?? ''}`.trim()}
+		bind:this={gameElement}
+	>
+		<div class={`game__pool game__pool--viewer ${isViewerTurn ? 'game__pool--turn' : ''}`.trim()}>
 			<Pool stacks={viewerPoolStacks} />
 		</div>
 
@@ -300,7 +298,6 @@
 		justify-self: stretch;
 		align-self: center;
 	}
-
 
 	.game__pool {
 		position: relative;

@@ -11,7 +11,9 @@ const DEFAULT_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SUPPRESS_CLASS = 'stack--animate-suppress-top';
 
 function prefersReducedMotion(): boolean {
-	return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	return (
+		typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+	);
 }
 
 function getTopLayer(stack: HTMLElement): HTMLElement | null {

@@ -34,7 +34,9 @@ export async function applyHumanMakeMoveCommand(params: {
 	getSnapshotMeta: () => SnapshotMeta;
 	setSnapshotMeta: (patch: Partial<SnapshotMeta>) => void;
 	broadcastStateSync: (snapshot: GameSnapshot) => void;
-}): Promise<{ ok: true; value: ApplyHumanMoveSuccess } | { ok: false; error: ApplyHumanMoveError }> {
+}): Promise<
+	{ ok: true; value: ApplyHumanMoveSuccess } | { ok: false; error: ApplyHumanMoveError }
+> {
 	if (!params.gamePersisted) {
 		return { ok: false, error: { kind: 'game_not_started' } };
 	}

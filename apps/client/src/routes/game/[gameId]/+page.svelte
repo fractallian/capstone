@@ -272,7 +272,10 @@
 		if (vsSelf && liveSnapshot) {
 			const optimisticGame = hydrateGameFromSnapshotState(liveSnapshot);
 			try {
-				optimisticGame.makeMove(optimisticGame.stacks[command.from], optimisticGame.stacks[command.to]);
+				optimisticGame.makeMove(
+					optimisticGame.stacks[command.from],
+					optimisticGame.stacks[command.to]
+				);
 				rollbackSnapshot = liveSnapshot;
 				const optimisticSnapshot: GameSnapshot = {
 					moves: optimisticGame.serialize(),

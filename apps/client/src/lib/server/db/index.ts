@@ -5,8 +5,7 @@ import * as schema from './schema';
 import { env } from '$env/dynamic/private';
 
 const databaseUrl =
-	env.DATABASE_URL ??
-	(building ? 'postgresql://build:build@127.0.0.1:5432/build' : undefined);
+	env.DATABASE_URL ?? (building ? 'postgresql://build:build@127.0.0.1:5432/build' : undefined);
 
 if (!databaseUrl) throw new Error('DATABASE_URL is not set');
 

@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import capstoneLogo from '$lib/assets/capstone-logo.svg';
 	import Rules from '$lib/components/Rules.svelte';
+	import Avatar from '$lib/components/Avatar.svelte';
 	import { dev } from '$app/environment';
 	import { getAuthClient } from '$lib/auth-client';
 
@@ -57,19 +58,13 @@
 			</a>
 			{#if data.hasSession && data.user}
 				<div class="flex items-center gap-3">
-					{#if data.user.image}
-						<img
-							src={data.user.image}
-							alt={data.user.name ?? data.user.email ?? 'User avatar'}
-							class="h-9 w-9 rounded-full object-cover"
-						/>
-					{:else}
-						<div
-							class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700"
-						>
-							{(data.user.name ?? data.user.email ?? 'U').slice(0, 2).toUpperCase()}
-						</div>
-					{/if}
+					<Avatar
+						id={data.user.id}
+						image={data.user.image}
+						label={data.user.name ?? data.user.email ?? 'User avatar'}
+						sizeClass="h-9 w-9"
+						textClass="text-xs"
+					/>
 					<div class="text-right">
 						<p class="text-sm font-medium text-slate-900">
 							{data.user.name ?? data.user.email ?? 'Signed in'}

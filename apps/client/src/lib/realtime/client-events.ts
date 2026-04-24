@@ -1,4 +1,8 @@
-import { gameServerEventSchema, type GameServerEvent, type GameSnapshot } from '@capstone/contracts';
+import {
+	gameServerEventSchema,
+	type GameServerEvent,
+	type GameSnapshot
+} from '@capstone/contracts';
 import type { Game } from '@capstone/game-logic';
 import type { AnimateStackMoveOptions } from '$lib/dom/animateStackMove';
 
@@ -55,7 +59,10 @@ export function parseGameEvent(payload: unknown): GameServerEvent | null {
 	return parsed.success ? parsed.data : null;
 }
 
-export function appendRecentEvent(events: GameServerEvent[], event: GameServerEvent): GameServerEvent[] {
+export function appendRecentEvent(
+	events: GameServerEvent[],
+	event: GameServerEvent
+): GameServerEvent[] {
 	return [...events.slice(-49), event];
 }
 

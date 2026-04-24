@@ -9,9 +9,7 @@
 	let { stacks, class: className }: PoolProps = $props();
 
 	const POOL_CELLS = 3 as const;
-	let cells = $derived(
-		Array.from({ length: POOL_CELLS }, (_, i) => stacks[i] ?? { pieces: [] })
-	);
+	let cells = $derived(Array.from({ length: POOL_CELLS }, (_, i) => stacks[i] ?? { pieces: [] }));
 </script>
 
 <div class={`pool ${className ?? ''}`.trim()}>

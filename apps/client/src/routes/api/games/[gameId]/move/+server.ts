@@ -29,7 +29,10 @@ export const POST = async ({ locals, params, request }) => {
 
 	if (!result.ok) {
 		const b = result.body;
-		return json({ error: b.error, errors: 'errors' in b ? b.errors : undefined }, { status: b.status });
+		return json(
+			{ error: b.error, errors: 'errors' in b ? b.errors : undefined },
+			{ status: b.status }
+		);
 	}
 
 	return json({ snapshot: result.snapshot });

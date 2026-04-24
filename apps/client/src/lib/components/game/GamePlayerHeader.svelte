@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Avatar from '$lib/components/Avatar.svelte';
 	let {
 		player1,
 		player2,
@@ -122,7 +123,7 @@
 
 		{#if !vsSelf}
 			<div
-				class="relative flex min-w-0 max-w-[min(100%,14rem)] items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+				class="relative flex max-w-[min(100%,14rem)] min-w-0 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
 			>
 				{#if showOpponentOnline}
 					<span
@@ -132,10 +133,15 @@
 					></span>
 				{/if}
 				{#if opponent?.image}
-					<img
-						src={opponent.image}
-						alt={getPlayerLabel(opponent)}
-						class="h-11 w-11 shrink-0 rounded-full object-cover"
+					<Avatar
+						id={opponent.id}
+						image={opponent.image}
+						label={getPlayerLabel(opponent)}
+						sizeClass="h-11 w-11"
+						textClass="text-xs"
+						backgroundClass="bg-amber-100"
+						foregroundClass="text-amber-900"
+						additionalClass="shrink-0 ring-1 ring-amber-200/80"
 					/>
 				{:else}
 					<div

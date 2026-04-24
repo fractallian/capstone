@@ -31,7 +31,6 @@ export const load = async ({ locals, params, url }) => {
 		throw error(404, 'Game not found');
 	}
 
-
 	const vsSelf = Boolean(currentGame.vsSelf);
 	const initialSnapshot = buildCapstoneSnapshot(new Game(), {
 		gameEnded: false,

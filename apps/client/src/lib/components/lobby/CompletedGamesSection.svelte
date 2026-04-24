@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Avatar from '$lib/components/Avatar.svelte';
 	let {
 		games,
 		formatDate,
@@ -69,10 +70,12 @@
 						<div class="flex min-w-0 items-center gap-2">
 							{#if gameRecord.opponent?.id !== 'ai' && gameRecord.opponent?.id !== 'self'}
 								{#if gameRecord.opponent?.image}
-									<img
-										src={gameRecord.opponent.image}
-										alt={getOpponentLabel(gameRecord.opponent)}
-										class="h-7 w-7 rounded-full object-cover"
+									<Avatar
+										id={gameRecord.opponent.id}
+										image={gameRecord.opponent.image}
+										label={getOpponentLabel(gameRecord.opponent)}
+										sizeClass="h-7 w-7"
+										textClass="text-[10px]"
 									/>
 								{:else}
 									<div

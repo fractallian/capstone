@@ -18,9 +18,7 @@ import { loadCapstoneSnapshotFromDb } from '$lib/server/game/load-capstone-snaps
 import type { SnapshotMeta } from '$lib/server/game/snapshot-meta';
 
 type HttpMoveError = { error: string; status: number; errors?: string[] };
-type HttpMoveResult =
-	| { ok: true; snapshot: GameSnapshot }
-	| { ok: false; body: HttpMoveError };
+type HttpMoveResult = { ok: true; snapshot: GameSnapshot } | { ok: false; body: HttpMoveError };
 
 export async function applyHttpGameMove(params: {
 	gameId: string;

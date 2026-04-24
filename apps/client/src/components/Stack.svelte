@@ -9,8 +9,13 @@
 		class?: string;
 	};
 
-	let { pieces, stackIndex, isDropTarget = false, isTopPieceDraggable = false, class: className }: StackProps =
-		$props();
+	let {
+		pieces,
+		stackIndex,
+		isDropTarget = false,
+		isTopPieceDraggable = false,
+		class: className
+	}: StackProps = $props();
 </script>
 
 <div

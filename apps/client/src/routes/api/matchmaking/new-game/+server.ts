@@ -45,7 +45,6 @@ async function ensureWaitingGameForUser(userId: string): Promise<void> {
 	setCurrentGameForUser(userId, gameId);
 }
 
-
 export const POST = async ({ locals }) => {
 	if (!locals.session || !locals.user) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
@@ -70,7 +69,6 @@ export const POST = async ({ locals }) => {
 	);
 
 	for (const candidate of [...onlineCandidates, ...offlineCandidates]) {
-
 		const claimed = await db
 			.update(game)
 			.set({ player2Id: locals.user.id })

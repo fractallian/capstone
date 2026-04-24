@@ -7,8 +7,9 @@ if (!url) {
 	process.exit(1);
 }
 
-const isRemote =
-	/supabase\.co|pooler\.supabase\.com|neon\.tech|render\.com|amazonaws\.com/.test(url);
+const isRemote = /supabase\.co|pooler\.supabase\.com|neon\.tech|render\.com|amazonaws\.com/.test(
+	url
+);
 const sql = postgres(url, {
 	max: 1,
 	...(isRemote ? { ssl: 'require' } : {})

@@ -42,7 +42,11 @@ export async function loadCapstoneSnapshotFromDb(
 	const coerced = coerceStoredBoardJson(latestBoardState?.board);
 	const parsed = gameSnapshotSchema.safeParse(coerced);
 	if (!parsed.success && latestBoardState?.board !== undefined) {
-		console.warn('[capstone] board snapshot failed validation; using fallback', gameId, parsed.error);
+		console.warn(
+			'[capstone] board snapshot failed validation; using fallback',
+			gameId,
+			parsed.error
+		);
 	}
 	return parsed.success ? parsed.data : fallback;
 }
