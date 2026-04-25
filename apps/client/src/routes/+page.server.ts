@@ -115,11 +115,12 @@ export const load = async ({ locals }) => {
 	});
 
 	const inProgressGames = inProgressSnapshots.sort((a, b) => {
+		if (a.isYourTurn !== b.isYourTurn) return a.isYourTurn ? -1 : 1;
 		const aOnlineRank = a.opponentOnline === true ? 0 : a.opponentOnline === false ? 1 : 2;
 		const bOnlineRank = b.opponentOnline === true ? 0 : b.opponentOnline === false ? 1 : 2;
 		if (aOnlineRank !== bOnlineRank) return aOnlineRank - bOnlineRank;
-		if (a.isYourTurn === b.isYourTurn) return 0;
-		return a.isYourTurn ? -1 : 1;
+
+		return new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime();
 	});
 	const completedGameRows = lobbyGames.filter((gameRecord) => Boolean(gameRecord.endedAt));
 	const completedGameIds = completedGameRows.map((gameRecord) => gameRecord.id);

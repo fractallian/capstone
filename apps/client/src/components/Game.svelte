@@ -334,11 +334,11 @@
 		background: rgb(255 255 255);
 		/* visible so dragged pieces aren’t clipped over the board; border-radius still frames the pool */
 		overflow: visible;
-		box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+		box-shadow: none;
 	}
 
 	.game__pool--viewer.game__pool--turn {
-		box-shadow: 0 1px 3px rgb(124 58 237 / 0.2);
+		box-shadow: none;
 	}
 
 	/* Opponent pool: open layout, no box */

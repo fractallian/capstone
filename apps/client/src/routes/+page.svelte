@@ -43,6 +43,7 @@
 	let isSigningIn = $state(false);
 	let isSigningOut = $state(false);
 	let isStartingGame = $state(false);
+	let isNavigatingToGame = $state(false);
 	let isAwaitingOpponentOptimistic = $state(false);
 	let matchmakingMessage = $state<string | null>(null);
 
@@ -99,7 +100,7 @@
 	}
 
 	async function startNewGame(attempt = 0) {
-		if (!data.user) return;
+		if (!data.user || isStartingGame || isNavigatingToGame) return;
 		isStartingGame = true;
 		matchmakingMessage = null;
 
@@ -111,8 +112,12 @@
 			const body = (await response.json()) as { gameId: string | null };
 			if (body.gameId) {
 				isAwaitingOpponentOptimistic = false;
-				await goto(`/game/${body.gameId}`);
-				void invalidateAll();
+				isNavigatingToGame = true;
+				try {
+					await goto(`/game/${body.gameId}`);
+				} catch {
+					window.location.assign(`/game/${body.gameId}`);
+				}
 				return;
 			}
 			isAwaitingOpponentOptimistic = true;
@@ -136,7 +141,7 @@
 	});
 
 	async function startNewAiGame() {
-		if (!data.user) return;
+		if (!data.user || isStartingGame || isNavigatingToGame) return;
 		isStartingGame = true;
 		matchmakingMessage = null;
 		try {
@@ -146,8 +151,12 @@
 				throw new Error(errBody.error ?? 'Unable to start AI game.');
 			}
 			const { gameId } = (await res.json()) as { gameId: string };
-			await goto(`/game/${gameId}`);
-			void invalidateAll();
+			isNavigatingToGame = true;
+			try {
+				await goto(`/game/${gameId}`);
+			} catch {
+				window.location.assign(`/game/${gameId}`);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			matchmakingMessage = message || 'Unable to start AI game right now.';
@@ -157,7 +166,7 @@
 	}
 
 	async function startNewSelfGame() {
-		if (!data.user) return;
+		if (!data.user || isStartingGame || isNavigatingToGame) return;
 		isStartingGame = true;
 		matchmakingMessage = null;
 		try {
@@ -167,8 +176,12 @@
 				throw new Error(errBody.error ?? 'Unable to start game.');
 			}
 			const { gameId } = (await res.json()) as { gameId: string };
-			await goto(`/game/${gameId}`);
-			void invalidateAll();
+			isNavigatingToGame = true;
+			try {
+				await goto(`/game/${gameId}`);
+			} catch {
+				window.location.assign(`/game/${gameId}`);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			matchmakingMessage = message || 'Unable to start game right now.';

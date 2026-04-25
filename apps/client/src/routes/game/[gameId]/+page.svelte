@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import GameComponent from '../../../components/Game.svelte';
 	import GamePlayerHeader from '$lib/components/game/GamePlayerHeader.svelte';
 	import type { SerializedMove } from '@capstone/game-logic';
@@ -68,7 +69,9 @@
 		'connecting' | 'opponent_connected' | 'waiting_for_opponent' | 'disconnected'
 	>('waiting_for_opponent');
 	let liveSnapshot = $state<GameStateLike>(null);
+	let hydratedSnapshotGameId = $state<string | null>(null);
 	let gameMessage = $state<string | null>(null);
+	let isPostGameActionPending = $state(false);
 	let isAiThinking = $state(false);
 	let debugLastEvent: GameServerEvent | null = $state(null);
 	let debugEvents: GameServerEvent[] = $state([]);
@@ -80,6 +83,43 @@
 		if (!gameState) return [];
 		if (Array.isArray(gameState)) return gameState;
 		return Array.isArray(gameState.moves) ? gameState.moves : [];
+	}
+
+	async function goHome() {
+		if (isPostGameActionPending) return;
+		isPostGameActionPending = true;
+		try {
+			await goto('/');
+		} catch {
+			window.location.assign('/');
+		} finally {
+			isPostGameActionPending = false;
+		}
+	}
+
+	async function playAgain() {
+		if (isPostGameActionPending || !isGameEnded || (!vsAi && !vsSelf)) return;
+		isPostGameActionPending = true;
+		gameMessage = null;
+		const endpoint = vsAi ? '/api/games/vs-ai' : '/api/games/vs-self';
+		try {
+			const res = await fetch(endpoint, { method: 'POST' });
+			if (!res.ok) {
+				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+				throw new Error(errBody.error ?? 'Unable to start game.');
+			}
+			const { gameId: newGameId } = (await res.json()) as { gameId: string };
+			try {
+				await goto(`/game/${newGameId}`);
+			} catch {
+				window.location.assign(`/game/${newGameId}`);
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			gameMessage = message || 'Unable to start game right now.';
+		} finally {
+			isPostGameActionPending = false;
+		}
 	}
 
 	function getCurrentTurnIndex(gameState: GameStateLike): 0 | 1 {
@@ -445,9 +485,11 @@
 	}
 
 	$effect(() => {
-		if (liveSnapshot === null) {
-			liveSnapshot = gameState;
-		}
+		if (hydratedSnapshotGameId === gameId) return;
+		hydratedSnapshotGameId = gameId;
+		liveSnapshot = gameState;
+		lastStateSyncMoveCount = getMoves(gameState).length;
+		gameMessage = null;
 	});
 
 	$effect(() => {
@@ -649,6 +691,28 @@
 		<div
 			class="flex min-h-0 flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-opacity sm:p-5"
 		>
+			{#if isGameEnded}
+				<div class="mb-3 flex flex-wrap items-center gap-2 sm:mb-4">
+					<button
+						type="button"
+						class="inline-flex cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={isPostGameActionPending}
+						onclick={() => void goHome()}
+					>
+						Home
+					</button>
+					{#if vsAi || vsSelf}
+						<button
+							type="button"
+							class="inline-flex cursor-pointer items-center rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+							disabled={isPostGameActionPending}
+							onclick={() => void playAgain()}
+						>
+							Play Again
+						</button>
+					{/if}
+				</div>
+			{/if}
 			<div
 				class="relative isolate mx-auto flex max-h-[calc(100dvh-13rem)] min-h-0 w-full flex-1 overflow-hidden rounded-lg"
 			>
