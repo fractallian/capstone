@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { browser, dev } from '$app/environment';
+	import { browser } from '$app/environment';
 	import Board from './Board.svelte';
 	import Pool from './Pool.svelte';
 	import type { StackProps } from './Stack.svelte';
@@ -40,7 +40,7 @@
 	});
 
 	$effect(() => {
-		if (!dev || !browser) return;
+		if (!browser) return;
 		setCapstoneGameBoardRoot(gameElement ?? null);
 		return () => setCapstoneGameBoardRoot(null);
 	});
