@@ -207,7 +207,6 @@
 							if (fromStackIndex === toStackIndex) return;
 							if (!isMoveLegal(fromStackIndex, toStackIndex)) return;
 
-							localMoves = [...localMoves, { from: fromStackIndex, to: toStackIndex }];
 							void onMove?.(fromStackIndex, toStackIndex);
 						},
 						ondropdeactivate(event) {

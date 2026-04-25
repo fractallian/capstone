@@ -9,6 +9,7 @@ export type AnimateStackMoveOptions = {
 const DEFAULT_DURATION_MS = 380;
 const DEFAULT_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 const SUPPRESS_CLASS = 'stack--animate-suppress-top';
+const HIDE_SOURCE_CLASS = 'stack--animate-hide-top';
 
 function prefersReducedMotion(): boolean {
 	return (
@@ -98,6 +99,7 @@ export function animateMove(
 
 	const cleanup = () => {
 		toStack.classList.remove(SUPPRESS_CLASS);
+		fromStack.classList.remove(HIDE_SOURCE_CLASS);
 		shell.remove();
 	};
 
@@ -121,6 +123,7 @@ export function animateMove(
 
 		requestAnimationFrame(() => {
 			toStack.classList.add(SUPPRESS_CLASS);
+			fromStack.classList.add(HIDE_SOURCE_CLASS);
 			requestAnimationFrame(() => {
 				flyer.style.transform = `translate3d(${dx}px,${dy}px,0)`;
 			});

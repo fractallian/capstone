@@ -378,6 +378,32 @@
 		);
 	}
 
+	function applyOptimisticRealtimeMove(command: MakeMoveCommand): void {
+		if (!liveSnapshot) return;
+		const optimisticGame = hydrateGameFromSnapshotState(liveSnapshot);
+		try {
+			optimisticGame.makeMove(
+				optimisticGame.stacks[command.from],
+				optimisticGame.stacks[command.to]
+			);
+		} catch {
+			return;
+		}
+
+		const optimisticSnapshot: GameSnapshot = {
+			moves: optimisticGame.serialize(),
+			startingTurnIndex: getStartingTurnIndex(liveSnapshot),
+			currentTurnIndex: optimisticGame.currentTurnIndex() as 0 | 1,
+			winnerPlayerId: getWinnerPlayerId(liveSnapshot),
+			winnerSeatIndex: getWinnerSeatIndex(liveSnapshot) ?? undefined,
+			endedAt: getEndedAt(liveSnapshot)
+		};
+
+		lastStateSyncMoveCount = optimisticSnapshot.moves.length;
+		liveSnapshot = optimisticSnapshot;
+		gameMessage = null;
+	}
+
 	function sendMove(from: number, to: number) {
 		const poolIndex = Number(from);
 		const boardIndex = Number(to);
@@ -395,6 +421,7 @@
 			to: boardIndex
 		};
 		if (shouldUseRealtimePvp() && room) {
+			applyOptimisticRealtimeMove(command);
 			room.send('command', command);
 			return;
 		}
@@ -408,6 +435,7 @@
 			to: toStackIndex
 		};
 		if (shouldUseRealtimePvp() && room) {
+			applyOptimisticRealtimeMove(command);
 			room.send('command', command);
 			return;
 		}

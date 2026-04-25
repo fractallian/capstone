@@ -39,6 +39,8 @@
 		(viewerPlayerIndex === 1 && currentTurnIndex === 0) ||
 			(viewerPlayerIndex === 2 && currentTurnIndex === 1)
 	);
+	let viewerSeatIndex = $derived(viewerPlayerIndex === 1 ? 0 : 1);
+	let isViewerPurple = $derived(viewerSeatIndex === startingTurnIndex);
 	let isCurrentTurnPurple = $derived(currentTurnIndex === startingTurnIndex);
 	let winnerColorName = $derived.by(() => {
 		if (winnerSeatIndex === null) return null;
@@ -86,9 +88,9 @@
 				? isCurrentTurnPurple
 					? 'bg-violet-50 text-violet-950 ring-violet-200'
 					: 'bg-amber-50 text-amber-950 ring-amber-200'
-				: isViewerTurn
+				: isCurrentTurnPurple
 					? 'bg-violet-50 text-violet-950 ring-violet-200'
-					: 'bg-slate-100 text-slate-600 ring-slate-200'
+					: 'bg-amber-50 text-amber-950 ring-amber-200'
 	);
 
 	let opponent = $derived(viewerPlayerIndex === 1 ? player2 : player1);
@@ -108,7 +110,11 @@
 	<div class={`flex flex-wrap items-center gap-3 ${vsSelf ? 'justify-center' : 'justify-between'}`}>
 		{#if !vsSelf}
 			<div
-				class="rounded-xl bg-violet-100 px-4 py-2 text-sm font-semibold tracking-tight text-violet-950 shadow-sm ring-1 ring-violet-200/80"
+				class={`rounded-xl px-4 py-2 text-sm font-semibold tracking-tight shadow-sm ring-1 ${
+					isViewerPurple
+						? 'bg-violet-100 text-violet-950 ring-violet-200/80'
+						: 'bg-amber-100 text-amber-950 ring-amber-200/80'
+				}`}
 			>
 				You
 			</div>
