@@ -69,9 +69,4 @@
 		opacity: 0.85;
 		z-index: 999 !important;
 	}
-
-	:global(.stack--animate-suppress-top .stack__layer:last-child),
-	:global(.stack--animate-hide-top .stack__layer:last-child) {
-		opacity: 0;
-	}
 </style>
